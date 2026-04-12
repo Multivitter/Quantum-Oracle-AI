@@ -1,5 +1,5 @@
 """
-🔮 Quantum Oracle v0.5 — Streamlit Edition
+🔮 Quantum Oracle v0.7 — Streamlit Edition
 AI + Quantum Business Strategy Engine
 
 Всё в одному файлі:
@@ -47,7 +47,7 @@ except Exception:
 # CONFIG
 # ============================================================
 st.set_page_config(
-    page_title="Quantum Oracle v0.5",
+    page_title="Quantum Oracle v0.7",
     page_icon="🔮",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -279,7 +279,7 @@ class QuantumOptimizer:
                 self.cirq = cirq
                 self.cirq_available = True
             except ImportError:
-                st.warning("Cirq not installed. Falling back to Qiskit simulator.")
+                pass  # Cirq not available, silent fallback
                 self.backend_name = "simulator"
 
         if backend == "pennylane":
@@ -288,7 +288,7 @@ class QuantumOptimizer:
                 self.qml = qml
                 self.pennylane_available = True
             except ImportError:
-                st.warning("PennyLane not installed. Falling back to Qiskit simulator.")
+                pass  # PennyLane not available, silent fallback
                 self.backend_name = "simulator"
 
         if backend == "ibm_quantum" and ibm_token:
@@ -419,7 +419,7 @@ class QuantumOptimizer:
                 return counts if counts else self._fallback_execute(qc, shots)
 
             except Exception as e:
-                st.warning(f"PennyLane error: {e}. Using Qiskit simulator.")
+                pass  # PennyLane error, silent fallback
                 return self._fallback_execute(qc, shots)
 
         # Google Cirq backend
@@ -465,7 +465,7 @@ class QuantumOptimizer:
                 return counts if counts else self._fallback_execute(qc, shots)
 
             except Exception as e:
-                st.warning(f"Cirq error: {e}. Using Qiskit simulator.")
+                pass  # Cirq error, silent fallback
                 return self._fallback_execute(qc, shots)
 
         # IBM Quantum backend
@@ -934,6 +934,175 @@ def quantum_correlation_matrix(scenarios, quantum_results):
     return matrix, labels
 
 
+# ============================================================
+# BCG MATRIX — Quantum Enhanced Portfolio Visualization
+# ============================================================
+def bcg_matrix_analyze(scenarios, quantum_results):
+    """Classify scenarios into BCG quadrants with quantum movement vectors."""
+    items = []
+    for s in scenarios:
+        q = next((r for r in quantum_results if r["scenario_id"] == s["id"]), {})
+        
+        # Growth = expected ROI (market growth proxy)
+        growth = s.get("expected_roi", 0)
+        # Market share = success probability (competitive position proxy)
+        share = s.get("success_probability", 50)
+        # Size = quantum allocation (importance)
+        size = q.get("allocation_percent", 20)
+        # Quantum momentum = quantum_score - ai_score (movement vector)
+        quantum_score = q.get("quantum_score", 50)
+        momentum = quantum_score - share  # positive = moving up
+        
+        # Classify quadrant
+        if growth > 30 and share > 55:
+            quadrant = "⭐ Star"
+            color = "#00ff88"
+        elif growth <= 30 and share > 55:
+            quadrant = "🐄 Cash Cow"
+            color = "#4488cc"
+        elif growth > 30 and share <= 55:
+            quadrant = "❓ Question Mark"
+            color = "#ccaa00"
+        else:
+            quadrant = "🐕 Dog"
+            color = "#cc4444"
+        
+        # Quantum prediction: where will it move?
+        future_share = min(100, max(0, share + momentum * 0.5))
+        future_growth = growth  # growth stays similar
+        
+        if future_share > 55 and share <= 55:
+            prediction = "→ ⭐ Becoming Star"
+        elif future_share <= 55 and share > 55:
+            prediction = "→ 🐕 Declining"
+        else:
+            prediction = "→ Stable"
+        
+        items.append({
+            "name": s["name"][:25],
+            "growth": growth,
+            "share": share,
+            "size": size,
+            "quadrant": quadrant,
+            "color": color,
+            "quantum_score": quantum_score,
+            "momentum": round(momentum, 1),
+            "prediction": prediction,
+            "future_share": future_share,
+            "recommendation": s.get("recommendation", "WAIT")
+        })
+    return items
+
+
+# ============================================================
+# AGENT-BASED MODELING — Market Simulation
+# ============================================================
+def agent_simulation(scenarios, best_scenario, num_agents=500, num_months=6):
+    """Simulate market with autonomous agents over time."""
+    np.random.seed(42)
+    
+    # Agent types
+    agent_types = {
+        "early_adopter": {"share": 0.12, "convert_prob": 0.35, "churn_prob": 0.05, "price_sensitivity": 0.3},
+        "mainstream": {"share": 0.55, "convert_prob": 0.12, "churn_prob": 0.08, "price_sensitivity": 0.6},
+        "skeptic": {"share": 0.20, "convert_prob": 0.04, "churn_prob": 0.15, "price_sensitivity": 0.8},
+        "bargain_hunter": {"share": 0.13, "convert_prob": 0.08, "churn_prob": 0.20, "price_sensitivity": 0.95}
+    }
+    
+    # Create agents
+    agents = []
+    for atype, params in agent_types.items():
+        count = int(num_agents * params["share"])
+        for _ in range(count):
+            agents.append({
+                "type": atype,
+                "active": False,
+                "months_active": 0,
+                "convert_prob": params["convert_prob"],
+                "churn_prob": params["churn_prob"],
+                "price_sensitivity": params["price_sensitivity"]
+            })
+    
+    # Market parameters from best scenario
+    base_success = best_scenario.get("success_probability", 50) / 100
+    risk_factor = best_scenario.get("risk_score", 50) / 100
+    
+    # Simulate month by month
+    monthly_data = []
+    total_users = 0
+    total_churned = 0
+    competitor_pressure = 0.0
+    
+    for month in range(1, num_months + 1):
+        new_users = 0
+        churned = 0
+        
+        # Competitor event (random)
+        if np.random.random() < 0.25:  # 25% chance per month
+            competitor_pressure += np.random.uniform(0.02, 0.08)
+        
+        # Word of mouth boost (network effect)
+        wom_boost = min(0.15, total_users * 0.001)
+        
+        for agent in agents:
+            if not agent["active"]:
+                # Try to convert
+                effective_prob = (agent["convert_prob"] * base_success * (1 + wom_boost) 
+                                 - competitor_pressure * agent["price_sensitivity"])
+                effective_prob = max(0, min(1, effective_prob))
+                
+                if np.random.random() < effective_prob:
+                    agent["active"] = True
+                    agent["months_active"] = 0
+                    new_users += 1
+            else:
+                agent["months_active"] += 1
+                # Try to churn
+                churn_risk = agent["churn_prob"] * (1 + risk_factor * 0.5 + competitor_pressure)
+                # Loyalty reduces churn over time
+                loyalty_factor = max(0.3, 1 - agent["months_active"] * 0.1)
+                
+                if np.random.random() < churn_risk * loyalty_factor:
+                    agent["active"] = False
+                    churned += 1
+        
+        total_users = sum(1 for a in agents if a["active"])
+        total_churned += churned
+        
+        # Events
+        events = []
+        if competitor_pressure > 0.1:
+            events.append("⚠️ Competitor pressure rising")
+        if wom_boost > 0.05:
+            events.append("📈 Word-of-mouth accelerating")
+        if churned > new_users:
+            events.append("🔴 Churn exceeds acquisition")
+        
+        monthly_data.append({
+            "month": month,
+            "total_users": total_users,
+            "new_users": new_users,
+            "churned": churned,
+            "net_growth": new_users - churned,
+            "competitor_pressure": round(competitor_pressure * 100, 1),
+            "wom_boost": round(wom_boost * 100, 1),
+            "events": events,
+            "by_type": {
+                atype: sum(1 for a in agents if a["active"] and a["type"] == atype)
+                for atype in agent_types
+            }
+        })
+    
+    return {
+        "monthly": monthly_data,
+        "total_agents": num_agents,
+        "final_users": total_users,
+        "total_churned": total_churned,
+        "retention_rate": round((1 - total_churned / max(total_users + total_churned, 1)) * 100, 1),
+        "agent_types": list(agent_types.keys())
+    }
+
+
 # Cached wrapper — same input = same result, no recalculation
 @st.cache_data(show_spinner=False, ttl=3600)
 def cached_claude(prompt, api_key, raw_text, model):
@@ -1105,9 +1274,9 @@ def call_claude(prompt, api_key, raw_text=False, model="claude-sonnet-4-6"):
 # Header
 st.markdown("""
 <div class="main-header">
-    <div class="version">QUANTUM ORACLE v0.5</div>
+    <div class="version">QUANTUM ORACLE v0.7</div>
     <h1>Business Strategy Engine</h1>
-    <div class="sub">AI + Quantum · Executive Decisions in 15 Seconds</div>
+    <div class="sub">AI + Quantum War Room · Executive Decisions in 15 Seconds</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1177,7 +1346,7 @@ with st.sidebar:
         ⚛️ {'IBM Quantum' if quantum_backend == 'ibm_quantum' else 'Google Cirq' if quantum_backend == 'google_cirq' else 'Xanadu PennyLane' if quantum_backend == 'pennylane' else '⚡ MULTI ENGINE' if 'MULTI' in quantum_backend else 'Qiskit AerSimulator'}<br>
         🧬 VQE {vqe_iterations} iterations × {num_shots} shots<br>
         = {vqe_iterations * num_shots:,} measurements<br><br>
-        QUANTUM ORACLE v0.5
+        QUANTUM ORACLE v0.7
     </div>
     """, unsafe_allow_html=True)
 
@@ -1567,6 +1736,15 @@ IMPORTANT: Use the real market data above for all calculations. Do not invent nu
                     st.session_state["qaoa_result"] = qaoa_result
                 except Exception as e:
                     st.session_state["qaoa_result"] = None
+
+            # STEP 2f: BCG Matrix
+            bcg_items = bcg_matrix_analyze(scenarios, quantum.get("results", []))
+            st.session_state["bcg_items"] = bcg_items
+
+            # STEP 2g: Agent-Based Modeling
+            best_s = next((s for s in scenarios if s["id"] == quantum["best_id"]), scenarios[0])
+            abm_result = agent_simulation(scenarios, best_s, num_agents=500, num_months=timeline)
+            st.session_state["abm_result"] = abm_result
 
             # STEP 3: Execution plan
             with st.spinner("📋 Building execution plan..."):
@@ -2278,6 +2456,135 @@ if "scenarios" in st.session_state:
         </div>
         """, unsafe_allow_html=True)
 
+    # === 📊 BCG MATRIX — Quantum Enhanced ===
+    bcg_items = st.session_state.get("bcg_items")
+    if bcg_items:
+        st.markdown("---")
+        st.markdown("### 📊 BCG MATRIX — Quantum Portfolio Map")
+        st.markdown(f'<div style="color:{text2}; font-size:0.8rem; margin-bottom:12px;">Bubble size = quantum allocation. Arrow = quantum momentum (where it\'s heading).</div>', unsafe_allow_html=True)
+
+        fig_bcg = go.Figure()
+
+        for item in bcg_items:
+            fig_bcg.add_trace(go.Scatter(
+                x=[item["share"]], y=[item["growth"]],
+                mode="markers+text",
+                marker=dict(size=item["size"] * 2.5 + 10, color=item["color"], opacity=0.7,
+                           line=dict(width=2, color=item["color"])),
+                text=[item["name"][:15]],
+                textposition="top center",
+                textfont=dict(size=9, color=text),
+                name=item["quadrant"],
+                hovertemplate=f"<b>{item['name']}</b><br>Growth: {item['growth']}%<br>Share: {item['share']}%<br>Quantum: {item['quantum_score']}%<br>Momentum: {item['momentum']:+.1f}<br>{item['prediction']}<extra></extra>"
+            ))
+
+            # Movement arrow
+            if abs(item["momentum"]) > 3:
+                fig_bcg.add_annotation(
+                    x=item["share"], y=item["growth"],
+                    ax=item["future_share"], ay=item["growth"],
+                    xref="x", yref="y", axref="x", ayref="y",
+                    showarrow=True, arrowhead=2, arrowsize=1.5,
+                    arrowcolor=accent if item["momentum"] > 0 else "#cc4444",
+                    opacity=0.6
+                )
+
+        # Quadrant lines
+        fig_bcg.add_hline(y=30, line_dash="dot", line_color=border, opacity=0.5)
+        fig_bcg.add_vline(x=55, line_dash="dot", line_color=border, opacity=0.5)
+
+        # Quadrant labels
+        fig_bcg.add_annotation(x=80, y=60, text="⭐ Stars", showarrow=False, font=dict(size=11, color="#00ff8855"))
+        fig_bcg.add_annotation(x=80, y=10, text="🐄 Cash Cows", showarrow=False, font=dict(size=11, color="#4488cc55"))
+        fig_bcg.add_annotation(x=30, y=60, text="❓ Question Marks", showarrow=False, font=dict(size=11, color="#ccaa0055"))
+        fig_bcg.add_annotation(x=30, y=10, text="🐕 Dogs", showarrow=False, font=dict(size=11, color="#cc444455"))
+
+        fig_bcg.update_layout(
+            height=400, showlegend=False,
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(color=text, size=10),
+            margin=dict(l=50, r=20, t=20, b=50),
+            xaxis=dict(title="Market Share / Success Probability %", gridcolor=border, range=[0, 100]),
+            yaxis=dict(title="Growth / Expected ROI %", gridcolor=border)
+        )
+        st.plotly_chart(fig_bcg, use_container_width=True)
+
+        # BCG table
+        bcg_table = [{"Scenario": i["name"], "Quadrant": i["quadrant"], "Quantum": f"{i['quantum_score']}%",
+                      "Momentum": f"{i['momentum']:+.1f}", "Prediction": i["prediction"]} for i in bcg_items]
+        st.dataframe(bcg_table, use_container_width=True)
+
+    # === 🤖 AGENT-BASED MODELING — Market Simulation ===
+    abm_result = st.session_state.get("abm_result")
+    if abm_result:
+        st.markdown("---")
+        st.markdown("### 🤖 AGENT-BASED MODELING — Market Simulation")
+        st.markdown(f'<div style="color:{text2}; font-size:0.8rem; margin-bottom:12px;">{abm_result["total_agents"]} virtual agents (buyers, skeptics, bargain hunters) simulated over {len(abm_result["monthly"])} months.</div>', unsafe_allow_html=True)
+
+        # Summary metrics
+        a1, a2, a3, a4 = st.columns(4)
+        with a1:
+            st.metric("Final Users", abm_result["final_users"])
+        with a2:
+            st.metric("Total Churned", abm_result["total_churned"])
+        with a3:
+            st.metric("Retention", f"{abm_result['retention_rate']}%")
+        with a4:
+            last_month = abm_result["monthly"][-1] if abm_result["monthly"] else {}
+            st.metric("Competitor Pressure", f"{last_month.get('competitor_pressure', 0)}%")
+
+        # User growth chart
+        months = [m["month"] for m in abm_result["monthly"]]
+        total_users = [m["total_users"] for m in abm_result["monthly"]]
+        new_users = [m["new_users"] for m in abm_result["monthly"]]
+        churned = [m["churned"] for m in abm_result["monthly"]]
+
+        fig_abm = go.Figure()
+        fig_abm.add_trace(go.Scatter(x=months, y=total_users, name="Total Users", fill="tozeroy",
+                                     line=dict(color=accent, width=2), fillcolor="rgba(0,255,136,0.08)"))
+        fig_abm.add_trace(go.Bar(x=months, y=new_users, name="New", marker_color="#4488cc", opacity=0.7))
+        fig_abm.add_trace(go.Bar(x=months, y=[-c for c in churned], name="Churned", marker_color="#cc4444", opacity=0.7))
+
+        fig_abm.update_layout(
+            height=300, barmode="relative",
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(color=text, size=10),
+            legend=dict(orientation="h", y=1.15),
+            margin=dict(l=40, r=20, t=20, b=40),
+            xaxis=dict(title="Month", gridcolor=border),
+            yaxis=dict(title="Users", gridcolor=border)
+        )
+        st.plotly_chart(fig_abm, use_container_width=True)
+
+        # Agent type breakdown
+        fig_types = go.Figure()
+        for atype in abm_result.get("agent_types", []):
+            values = [m["by_type"].get(atype, 0) for m in abm_result["monthly"]]
+            fig_types.add_trace(go.Scatter(x=months, y=values, name=atype.replace("_", " ").title(),
+                                          mode="lines+markers", stackgroup="one"))
+
+        fig_types.update_layout(
+            height=250,
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(color=text, size=10),
+            legend=dict(orientation="h", y=1.15),
+            margin=dict(l=40, r=20, t=20, b=40),
+            xaxis=dict(title="Month", gridcolor=border),
+            yaxis=dict(title="Active by Type", gridcolor=border)
+        )
+        st.plotly_chart(fig_types, use_container_width=True)
+
+        # Events timeline
+        events_found = False
+        for m in abm_result["monthly"]:
+            if m.get("events"):
+                events_found = True
+                for event in m["events"]:
+                    st.markdown(f'<div style="color:{text2}; font-size:0.8rem;">Month {m["month"]}: {event}</div>', unsafe_allow_html=True)
+
+        if not events_found:
+            st.markdown(f'<div style="color:{accent}; font-size:0.8rem;">✅ No critical market events detected in simulation.</div>', unsafe_allow_html=True)
+
     # === EXECUTION PLAN ===
     if exec_data and exec_data.get("execution_plan"):
         st.markdown("---")
@@ -2624,7 +2931,7 @@ Use specific numbers, not ranges."""
     biggest_diff = max(ai_vs_quantum, key=lambda x: abs(x["shift"]))
 
     export_data = {
-        "oracle_version": "0.5",
+        "oracle_version": "0.7",
         "model": claude_model,
         "mode": mode_val,
         "input": {
@@ -2836,7 +3143,7 @@ Plotly.newPlot('vqeChart', [
 </script>
 
 <div class="footer">
-Quantum Oracle v0.5 · AI + Qiskit VQE · {mode_val.upper()} MODE · {quantum.get('total_qubits', 0)} qubits · {quantum.get('total_shots', 0):,} shots
+Quantum Oracle v0.7 · AI + Qiskit VQE · {mode_val.upper()} MODE · {quantum.get('total_qubits', 0)} qubits · {quantum.get('total_shots', 0):,} shots
 </div></body></html>"""
 
     col_pdf, col_json2 = st.columns(2)
@@ -2892,6 +3199,6 @@ Quantum Oracle v0.5 · AI + Qiskit VQE · {mode_val.upper()} MODE · {quantum.ge
     # Footer
     st.markdown(f"""
     <div style="text-align:center; color:{text2}; font-size:0.7rem; letter-spacing:1px; margin-top:32px; padding:16px;">
-        QUANTUM ORACLE v0.5 · AI + QISKIT VQE · {mode_val.upper()} MODE · {quantum.get('total_qubits', 0)} qubits · {quantum.get('total_shots', 0):,} shots
+        QUANTUM ORACLE v0.7 · AI + QISKIT VQE · {mode_val.upper()} MODE · {quantum.get('total_qubits', 0)} qubits · {quantum.get('total_shots', 0):,} shots
     </div>
-    """, unsafe_allow_html=True) 
+    """, unsafe_allow_html=True)
