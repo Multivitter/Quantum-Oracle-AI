@@ -1071,7 +1071,18 @@ st.markdown("""
 # Sidebar
 with st.sidebar:
     st.markdown("### ⚙️ Settings")
-    api_key = st.text_input("Claude API Key", type="password", help="sk-ant-...")
+    # Read from Streamlit secrets first, fallback to manual input
+    default_key = ""
+    try:
+        default_key = st.secrets.get("ANTHROPIC_API_KEY", "")
+    except Exception:
+        default_key = ""
+    
+    if default_key:
+        api_key = default_key
+        st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ API Key loaded from secrets</div>', unsafe_allow_html=True)
+    else:
+        api_key = st.text_input("Claude API Key", type="password", help="sk-ant-...")
 
     st.markdown("### 🤖 Claude Model")
     model_options = {
