@@ -33,6 +33,15 @@ try:
 except ImportError:
     ANTHROPIC_AVAILABLE = False
 
+# Set env var from secrets if available (backup for anthropic library)
+import os
+try:
+    _secret_api = str(st.secrets["ANTHROPIC_API_KEY"]).strip().strip('"').strip("'")
+    if _secret_api.startswith("sk-ant"):
+        os.environ["ANTHROPIC_API_KEY"] = _secret_api
+except Exception:
+    pass
+
 
 # ============================================================
 # CONFIG
@@ -1016,8 +1025,10 @@ Be specific. No vague advice. ONLY valid JSON."""
 
 def _call_claude_inner(prompt, api_key, raw_text=False, model="claude-sonnet-4-6"):
     """Inner function for Claude API calls (used by cache wrapper)."""
+    if not api_key or not isinstance(api_key, str) or not api_key.startswith("sk-ant"):
+        raise ValueError(f"Invalid API key format: {str(api_key)[:20] if api_key else 'None'}")
     try:
-        client = anthropic.Anthropic(api_key=api_key)
+        client = anthropic.Anthropic(api_key=str(api_key).strip())
         msg = client.messages.create(
             model=model,
             max_tokens=4000,
@@ -1072,17 +1083,19 @@ st.markdown("""
 with st.sidebar:
     st.markdown("### ⚙️ Settings")
     # Read from Streamlit secrets first, fallback to manual input
-    default_key = ""
+    secret_key = ""
     try:
-        default_key = st.secrets["ANTHROPIC_API_KEY"]
+        secret_key = str(st.secrets["ANTHROPIC_API_KEY"]).strip().strip('"').strip("'")
     except Exception:
-        default_key = ""
+        secret_key = ""
     
-    if default_key:
-        api_key = default_key
-        st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ API Key loaded from secrets</div>', unsafe_allow_html=True)
+    if secret_key and secret_key.startswith("sk-ant"):
+        api_key = secret_key
+        st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ API Key loaded ({api_key[:12]}...)</div>', unsafe_allow_html=True)
     else:
         api_key = st.text_input("Claude API Key", type="password", help="sk-ant-...")
+        if secret_key:
+            st.markdown(f'<div style="color:#cc4444; font-size:0.7rem;">⚠️ Secret key found but invalid format: {secret_key[:15]}...</div>', unsafe_allow_html=True)
 
     st.markdown("### 🤖 Claude Model")
     model_options = {
