@@ -1,0 +1,15 @@
+streamlit
+qiskit
+qiskit-aer
+qiskit-ibm-runtime
+cirq
+pennylane
+numpy
+plotly
+anthropic
+httpx
+fastapi
+uvicorn
+pandas
+openpyxl
+PyPDF2
