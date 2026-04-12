@@ -1074,7 +1074,7 @@ with st.sidebar:
     # Read from Streamlit secrets first, fallback to manual input
     default_key = ""
     try:
-        default_key = st.secrets.get("ANTHROPIC_API_KEY", "")
+        default_key = st.secrets["ANTHROPIC_API_KEY"]
     except Exception:
         default_key = ""
     
