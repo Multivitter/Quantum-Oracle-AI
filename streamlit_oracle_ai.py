@@ -2894,4 +2894,4 @@ Quantum Oracle v0.5 · AI + Qiskit VQE · {mode_val.upper()} MODE · {quantum.ge
     <div style="text-align:center; color:{text2}; font-size:0.7rem; letter-spacing:1px; margin-top:32px; padding:16px;">
         QUANTUM ORACLE v0.5 · AI + QISKIT VQE · {mode_val.upper()} MODE · {quantum.get('total_qubits', 0)} qubits · {quantum.get('total_shots', 0):,} shots
     </div>
-    """, unsafe_allow_html=True)
+    """, unsafe_allow_html=True) 
