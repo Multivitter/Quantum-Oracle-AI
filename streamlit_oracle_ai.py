@@ -1058,6 +1058,38 @@ def _call_claude_inner(prompt, api_key, raw_text=False, model="claude-sonnet-4-6
         raise e
 
 
+def web_search_context(idea, api_key, model="claude-sonnet-4-6"):
+    """Search web for real market data before analysis."""
+    if not api_key or not api_key.startswith("sk-ant"):
+        return ""
+    try:
+        client = anthropic.Anthropic(api_key=str(api_key).strip())
+        msg = client.messages.create(
+            model=model,
+            max_tokens=2000,
+            tools=[{"type": "web_search_20250305", "name": "web_search"}],
+            messages=[{"role": "user", "content": f"""Search the web for current real market data relevant to this business:
+
+{idea[:500]}
+
+Find and return ONLY factual numbers:
+- Current market prices, rates, costs relevant to this industry
+- Market size, growth rates
+- Competitor pricing
+- Any relevant economic indicators
+
+Format as a short bullet list of VERIFIED facts with sources. Max 10 bullets. Only real data, no opinions."""}]
+        )
+        # Extract text from response (may contain tool use blocks)
+        texts = []
+        for block in msg.content:
+            if hasattr(block, 'text'):
+                texts.append(block.text)
+        return "\n".join(texts) if texts else ""
+    except Exception as e:
+        return f"(Web search unavailable: {e})"
+
+
 def call_claude(prompt, api_key, raw_text=False, model="claude-sonnet-4-6"):
     """Claude API with caching — same prompt+model = cached result."""
     try:
@@ -1131,6 +1163,9 @@ with st.sidebar:
     if high_precision:
         vqe_iterations = st.slider("VQE Iterations (HP)", 10, 30, 15, key="hp_iter")
         num_shots = st.select_slider("Shots (HP)", [2048, 4096, 8192], value=2048, key="hp_shots")
+
+    st.markdown("---")
+    web_search_enabled = st.toggle("🌐 Web Search (real data)", value=False, help="Claude searches web for real market prices before analysis. Costs ~$0.03 extra.")
 
     st.markdown("---")
     lang = st.selectbox("🌐 Language", ["English", "Русский", "Українська"])
@@ -1432,10 +1467,29 @@ if st.button("⚡ RUN QUANTUM SIMULATION", use_container_width=True):
     elif not api_key and not ANTHROPIC_AVAILABLE:
         st.warning("Enter Claude API key in sidebar")
     else:
+        # STEP 0: Web Search for real market data (optional)
+        market_context = ""
+        if web_search_enabled:
+            with st.spinner("🌐 Searching web for real market data..."):
+                market_context = web_search_context(idea, api_key, model=claude_model)
+                if market_context:
+                    st.session_state["market_context"] = market_context
+
         # STEP 1: Claude scenarios
         with st.spinner("🧠 AI generating scenarios..."):
+            # Inject real market data into prompt if available
+            idea_with_context = idea
+            if market_context and len(market_context) > 20:
+                idea_with_context = f"""{idea}
+
+=== VERIFIED MARKET DATA (from web search) ===
+{market_context}
+=== END MARKET DATA ===
+
+IMPORTANT: Use the real market data above for all calculations. Do not invent numbers where real data is available."""
+
             prompt = SCENARIOS_PROMPT.format(
-                idea=idea, budget=budget, markets=markets,
+                idea=idea_with_context, budget=budget, markets=markets,
                 timeline=timeline, risk=risk, mode=mode_val,
                 lang=lang_map[lang]
             )
@@ -1605,6 +1659,12 @@ if "scenarios" in st.session_state:
         <div style="color:{text}; font-size:0.9rem; line-height:1.5;">{idea_short}</div>
     </div>
     """, unsafe_allow_html=True)
+
+    # === WEB SEARCH CONTEXT ===
+    market_ctx = st.session_state.get("market_context")
+    if market_ctx and len(market_ctx) > 20:
+        with st.expander("🌐 Real Market Data (from web search)", expanded=False):
+            st.markdown(market_ctx)
 
     # === EXECUTIVE DECISION ===
     mrr_display = f"+${mrr:,} MRR" if isinstance(mrr, (int, float)) else ""
