@@ -1992,7 +1992,7 @@ IMPORTANT: Use the real market data above for all calculations. Do not invent nu
                 "quantum_score": quantum["results"][0]["quantum_score"],
                 "roi": next((s["expected_roi"] for s in scenarios if s["id"] == quantum["best_id"]), 0),
                 "risk": next((s["risk_score"] for s in scenarios if s["id"] == quantum["best_id"]), 0),
-                "mrr": exec_data.get("money_projection", {}).get("total_mrr_target", "—") if exec_data else "—",
+                "mrr": int(float(exec_data.get("money_projection", {}).get("total_mrr_target", 0))) if exec_data and exec_data.get("money_projection", {}).get("total_mrr_target") else 0,
                 "mode": mode_val,
                 "confidence": round(
                     next((s["success_probability"] for s in scenarios if s["id"] == quantum["best_id"]), 50) * 0.6 +
@@ -3411,7 +3411,7 @@ Quantum Oracle v0.7 · AI + Qiskit VQE · {mode_val.upper()} MODE · {quantum.ge
                 <td style="padding:10px; text-align:center; color:{title_text}; font-weight:600; font-size:0.8rem;">{h['strategy']}</td>
                 <td style="padding:10px; text-align:center; color:{'#00e878' if h['success'] > 60 else '#c8a020'}; font-weight:600;">{h['success']}%</td>
                 <td style="padding:10px; text-align:center; color:#4488cc; font-weight:600;">{h['quantum_score']}%</td>
-                <td style="padding:10px; text-align:center; color:{'#00e878' if dark_mode else '#00884a'}; font-weight:600;">${h['mrr']:,}</td>
+                <td style="padding:10px; text-align:center; color:{'#00e878' if dark_mode else '#00884a'}; font-weight:600;">${int(float(h.get('mrr', 0) or 0)):,}</td>
                 <td style="padding:10px; text-align:center; color:{'#9878cc' if dark_mode else '#6644aa'}; font-weight:600;">{h['confidence']}%</td>
                 <td style="padding:10px; text-align:center; color:{text2}; font-size:0.75rem;">{h['mode']}</td>
             </tr>"""
