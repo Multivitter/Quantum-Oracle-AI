@@ -84,7 +84,7 @@ st.set_page_config(
 # Theme toggle
 with st.sidebar:
     st.markdown("### 🎨 Theme")
-    dark_mode = st.checkbox("Dark Mode", value=True)
+    dark_mode = st.toggle("Dark Mode", value=True)
 
 if dark_mode:
     bg = "#060608"; bg2 = "#0a0a0e"; border = "#1e1e28"; text = "#e8eaec"; text2 = "#a0a8b0"; accent = "#00ff88"
@@ -152,8 +152,19 @@ st.markdown(f"""
         box-shadow: 0 0 20px {accent}25 !important;
     }}
 
-    /* === CHECKBOXES — always visible === */
-    div[data-testid="stCheckbox"] label span {{ color: {text} !important; font-weight: 500 !important; }}
+    /* === TOGGLES — bordered containers === */
+    div[data-testid="stToggle"] {{
+        background: {'rgba(255,255,255,0.03)' if dark_mode else 'rgba(0,0,0,0.04)'} !important;
+        border: 1.5px solid {border} !important;
+        border-radius: 10px !important;
+        padding: 6px 12px !important;
+        margin-bottom: 4px !important;
+    }}
+    div[data-testid="stToggle"]:has([aria-checked="true"]) {{
+        border-color: {accent} !important;
+        background: {'rgba(0,255,136,0.05)' if dark_mode else 'rgba(0,170,85,0.06)'} !important;
+    }}
+    div[data-testid="stToggle"] label span {{ color: {text} !important; font-weight: 500 !important; }}
 
     /* === HEADER === */
     .main-header {{ text-align: center; padding: 24px 0 32px; }}
@@ -1468,15 +1479,15 @@ with st.sidebar:
     st.markdown("### 🤖 AI Engine")
     col_all, _ = st.columns([1, 2])
     with col_all:
-        use_all = st.checkbox("⚡ All", value=False, key="use_all_ai")
+        use_all = st.toggle("⚡ All", value=False, key="use_all_ai")
     
     col_ai1, col_ai2, col_ai3 = st.columns(3)
     with col_ai1:
-        use_claude = st.checkbox("Claude", value=use_all or (True if secret_key else False), key="use_claude")
+        use_claude = st.toggle("Claude", value=use_all or (True if secret_key else False), key="use_claude")
     with col_ai2:
-        use_gemini = st.checkbox("Gemini", value=use_all or (True if gemini_key else False), key="use_gemini")
+        use_gemini = st.toggle("Gemini", value=use_all or (True if gemini_key else False), key="use_gemini")
     with col_ai3:
-        use_groq = st.checkbox("Groq", value=use_all, key="use_groq")
+        use_groq = st.toggle("Groq", value=use_all, key="use_groq")
     
     # Build ai_engine from toggles
     active_engines = []
@@ -1555,13 +1566,13 @@ with st.sidebar:
     vqe_iterations = st.slider("VQE Iterations", 5, 25, 8)
     num_shots = st.select_slider("Shots per iteration", [512, 1024, 2048, 4096, 8192], value=1024)
 
-    high_precision = st.checkbox("🔬 High Precision Mode", value=False)
+    high_precision = st.toggle("🔬 High Precision Mode", value=False)
     if high_precision:
         vqe_iterations = st.slider("VQE Iterations (HP)", 10, 30, 15, key="hp_iter")
         num_shots = st.select_slider("Shots (HP)", [2048, 4096, 8192], value=2048, key="hp_shots")
 
     st.markdown("---")
-    web_search_enabled = st.checkbox("🌐 Web Search (real data)", value=False, help="Claude searches web for real market prices before analysis. Costs ~$0.03 extra.")
+    web_search_enabled = st.toggle("🌐 Web Search (real data)", value=False, help="Claude searches web for real market prices before analysis. Costs ~$0.03 extra.")
 
     st.markdown("---")
     lang = st.selectbox("🌐 Language", ["English", "Русский", "Українська"])
@@ -1604,7 +1615,7 @@ Format: just the idea description in 2-3 sentences, no title, no numbering. Be s
             st.warning("Enter API key in sidebar")
 
 with col_side:
-    show_params = st.checkbox("⚙️ Parameters", value=False)
+    show_params = st.toggle("⚙️ Parameters", value=False)
     if show_params:
         budget = st.number_input("💰 Budget ($)", value=10000, step=1000)
         markets_list = st.multiselect("🌍 Markets",
@@ -1623,7 +1634,7 @@ with col_side:
 csv_data_summary = None
 
 # === AI CHAT — discuss before analysis ===
-chat_enabled = st.checkbox("💬 Chat with AI", value=False, help="Discuss your idea, get suggestions before running analysis")
+chat_enabled = st.toggle("💬 Chat with AI", value=False, help="Discuss your idea, get suggestions before running analysis")
 
 if chat_enabled:
     # Initialize chat history
@@ -1680,16 +1691,16 @@ Respond in the same language as the user."""
             st.session_state["chat_history"].append({"role": "ai", "text": reply})
         st.rerun()
 
-attach_data = st.checkbox("📎 Attach Data", value=False, help="Upload file, Google Sheets, or Live API")
+attach_data = st.toggle("📎 Attach Data", value=False, help="Upload file, Google Sheets, or Live API")
 
 if attach_data:
     col_s1, col_s2, col_s3 = st.columns(3)
     with col_s1:
-        use_file = st.checkbox("📎 File", value=False, key="use_file")
+        use_file = st.toggle("📎 File", value=False, key="use_file")
     with col_s2:
-        use_sheets = st.checkbox("🔗 Sheets", value=False, key="use_sheets")
+        use_sheets = st.toggle("🔗 Sheets", value=False, key="use_sheets")
     with col_s3:
-        use_api = st.checkbox("🌐 Live API", value=False, key="use_api")
+        use_api = st.toggle("🌐 Live API", value=False, key="use_api")
 
     if use_file:
         uploaded_file = st.file_uploader("Upload", type=["csv", "xlsx", "xls", "pdf", "txt", "json"], label_visibility="collapsed")
