@@ -3320,7 +3320,12 @@ Use specific numbers, not ranges."""
             "depth": quantum.get("depth"),
             "vqe_iterations": quantum.get("iterations"),
             "vqe_convergence": quantum.get("convergence"),
-            "results": quantum.get("results")
+            "results": quantum.get("results"),
+            "explainer": {
+                "what_qubits_do": f"Each qubit = one strategy. {quantum.get('total_qubits', 0)} qubits with entanglement (CX gates) evaluate {2**quantum.get('total_qubits', 0):,} combinations in {quantum.get('total_shots', 0):,} measurements.",
+                "what_score_means": "quantum_score = probability (%) that this strategy survives portfolio optimization. 86% = selected in 86 of 100 quantum measurements. 29% = only 29 of 100 — quantum detected conflicts with other strategies.",
+                "why_ai_quantum_disagree": "AI ranks each strategy independently. Quantum evaluates all strategies simultaneously through entanglement — some individually strong strategies weaken others in portfolio. Divergence = hidden cross-strategy dependencies."
+            }
         },
         "scenarios": scenarios,
         "execution_plan": exec_data.get("execution_plan") if exec_data else None,
@@ -3557,4 +3562,4 @@ Quantum Oracle v0.7 · AI + Qiskit VQE · {mode_val.upper()} MODE · {quantum.ge
     <div style="text-align:center; color:{text2}; font-size:0.7rem; letter-spacing:1px; margin-top:32px; padding:16px;">
         QUANTUM ORACLE v0.7 · AI + QISKIT VQE · {mode_val.upper()} MODE · {quantum.get('total_qubits', 0)} qubits · {quantum.get('total_shots', 0):,} shots
     </div>
-    """, unsafe_allow_html=True) 
+    """, unsafe_allow_html=True)
