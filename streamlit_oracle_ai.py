@@ -34,10 +34,14 @@ except ImportError:
     ANTHROPIC_AVAILABLE = False
 
 try:
-    import google.generativeai as genai
+    from google import genai as genai_client
     GEMINI_AVAILABLE = True
 except ImportError:
-    GEMINI_AVAILABLE = False
+    try:
+        import google.generativeai as genai_client
+        GEMINI_AVAILABLE = True
+    except ImportError:
+        GEMINI_AVAILABLE = False
 
 try:
     from groq import Groq as GroqClient
@@ -58,8 +62,7 @@ try:
     _gemini_key = str(st.secrets["GEMINI_API_KEY"]).strip().strip('"').strip("'")
     if _gemini_key.startswith("AIza"):
         os.environ["GEMINI_API_KEY"] = _gemini_key
-        if GEMINI_AVAILABLE:
-            genai.configure(api_key=_gemini_key)
+        pass  # genai configured per-call
 except Exception:
     pass
 
@@ -1292,13 +1295,10 @@ def web_search_context(idea, api_key, model="claude-sonnet-4-6"):
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
     if gemini_key and GEMINI_AVAILABLE:
         try:
-            from google.generativeai import GenerativeModel
-            search_model = GenerativeModel(
-                "gemini-2.5-flash",
-                tools=[{"google_search": {}}]
-            )
-            response = search_model.generate_content(
-                f"""Search the web for current real market data relevant to this business:
+            client = genai_client.Client(api_key=gemini_key)
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=f"""Search the web for current real market data relevant to this business:
 
 {idea[:500]}
 
@@ -1308,7 +1308,8 @@ Find and return ONLY factual numbers:
 - Competitor pricing
 - Any relevant economic indicators
 
-Format as a short bullet list of VERIFIED facts with sources. Max 10 bullets. Only real data, no opinions."""
+Format as a short bullet list of VERIFIED facts with sources. Max 10 bullets. Only real data, no opinions.""",
+                config={"tools": [{"google_search": {}}]}
             )
             if response and response.text:
                 return f"[Source: Google Search via Gemini — FREE]\n{response.text}"
@@ -1355,12 +1356,18 @@ def call_claude(prompt, api_key, raw_text=False, model="claude-sonnet-4-6"):
 
 
 def call_gemini(prompt, raw_text=False, gemini_model="gemini-2.5-flash"):
-    """Google Gemini API call."""
+    """Google Gemini API call (new google.genai SDK)."""
     if not GEMINI_AVAILABLE:
         return None
+    gemini_key = os.environ.get("GEMINI_API_KEY", "")
+    if not gemini_key:
+        return None
     try:
-        model = genai.GenerativeModel(gemini_model)
-        response = model.generate_content(prompt)
+        client = genai_client.Client(api_key=gemini_key)
+        response = client.models.generate_content(
+            model=gemini_model,
+            contents=prompt
+        )
         text = response.text
         if raw_text:
             return text
@@ -1477,8 +1484,7 @@ with st.sidebar:
 
     if gemini_key and gemini_key.startswith("AIza"):
         st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ Gemini ({gemini_key[:12]}...)</div>', unsafe_allow_html=True)
-        if GEMINI_AVAILABLE:
-            genai.configure(api_key=gemini_key)
+        pass  # genai configured per-call
 
     groq_key = ""
     try:
