@@ -1570,13 +1570,20 @@ Format: just the idea description in 2-3 sentences, no title, no numbering. Be s
                 st.warning("Enter Claude API key in sidebar")
 
     with col2:
-        budget = st.number_input("💰 Budget ($)", value=10000, step=1000)
-        markets_list = st.multiselect("🌍 Target Markets", 
-            ["🇺🇸 US", "🇨🇦 CA", "🇪🇺 EU", "🇩🇪 DE", "🇬🇧 UK", "🇺🇦 UA", "🌍 Global"],
-            default=["🇺🇸 US", "🇪🇺 EU"])
-        markets = ", ".join([m.split(" ")[-1] for m in markets_list])
-        timeline = st.number_input("⏱️ Timeline (months)", value=6, min_value=1, max_value=36)
-        risk = st.selectbox("🎯 Risk Tolerance", ["low", "medium", "high"], index=1)
+        show_params = st.toggle("⚙️ Parameters", value=False)
+        if show_params:
+            budget = st.number_input("💰 Budget ($)", value=10000, step=1000)
+            markets_list = st.multiselect("🌍 Target Markets", 
+                ["🇺🇸 US", "🇨🇦 CA", "🇪🇺 EU", "🇩🇪 DE", "🇬🇧 UK", "🇺🇦 UA", "🌍 Global"],
+                default=["🇺🇸 US", "🇪🇺 EU"])
+            markets = ", ".join([m.split(" ")[-1] for m in markets_list])
+            timeline = st.number_input("⏱️ Timeline (months)", value=6, min_value=1, max_value=36)
+            risk = st.selectbox("🎯 Risk Tolerance", ["low", "medium", "high"], index=1)
+        else:
+            budget = 10000
+            markets = "US, EU"
+            timeline = 6
+            risk = "medium"
 
     csv_data_summary = None
 
@@ -1799,13 +1806,20 @@ else:
                 """, unsafe_allow_html=True)
 
     with col_d2:
-        budget = st.number_input("💰 Budget ($)", value=10000, step=1000, key="budget_csv")
-        markets_list = st.multiselect("🌍 Target Markets",
-            ["🇺🇸 US", "🇨🇦 CA", "🇪🇺 EU", "🇩🇪 DE", "🇬🇧 UK", "🇺🇦 UA", "🌍 Global"],
-            default=["🇺🇸 US", "🇪🇺 EU"], key="markets_csv")
-        markets = ", ".join([m.split(" ")[-1] for m in markets_list])
-        timeline = st.number_input("⏱️ Timeline (months)", value=6, min_value=1, max_value=36, key="timeline_csv")
-        risk = st.selectbox("🎯 Risk Tolerance", ["low", "medium", "high"], index=1, key="risk_csv")
+        show_params_csv = st.toggle("⚙️ Parameters", value=False, key="params_csv")
+        if show_params_csv:
+            budget = st.number_input("💰 Budget ($)", value=10000, step=1000, key="budget_csv")
+            markets_list = st.multiselect("🌍 Target Markets",
+                ["🇺🇸 US", "🇨🇦 CA", "🇪🇺 EU", "🇩🇪 DE", "🇬🇧 UK", "🇺🇦 UA", "🌍 Global"],
+                default=["🇺🇸 US", "🇪🇺 EU"], key="markets_csv")
+            markets = ", ".join([m.split(" ")[-1] for m in markets_list])
+            timeline = st.number_input("⏱️ Timeline (months)", value=6, min_value=1, max_value=36, key="timeline_csv")
+            risk = st.selectbox("🎯 Risk Tolerance", ["low", "medium", "high"], index=1, key="risk_csv")
+        else:
+            budget = 10000
+            markets = "US, EU"
+            timeline = 6
+            risk = "medium"
 
     # Context about the data
     data_context = st.text_area(
