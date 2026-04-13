@@ -3,14 +3,11 @@ qiskit
 qiskit-aer
 qiskit-ibm-runtime
 google-genai
-cirq
-pennylane
+groq
 numpy
+pandas
 plotly
 anthropic
 httpx
-fastapi
-uvicorn
-pandas
 openpyxl
 PyPDF2
