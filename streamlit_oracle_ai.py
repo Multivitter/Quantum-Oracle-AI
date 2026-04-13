@@ -232,6 +232,240 @@ st.markdown(f"""
     }}
     .quantum-label {{ color: {'#4488cc' if dark_mode else '#2266aa'}; font-size: 0.65rem; letter-spacing: 3px; font-weight: 700; }}
 
+    /* === SCENARIO CARDS === */"""
+🔮 Quantum Oracle v0.7 — Streamlit Edition
+AI + Quantum Business Strategy Engine
+
+Всё в одному файлі:
+- Claude API → 5 сценаріїв + execution plan
+- Qiskit AerSimulator → квантова оптимізація
+- VQE AI↔Quantum Loop → пошук квантового дна
+- Executive Decision → McKinsey-стиль dashboard
+
+Встановлення:
+    pip install streamlit qiskit qiskit-aer numpy plotly anthropic
+
+Запуск:
+    streamlit run streamlit_oracle.py
+"""
+
+import json
+import numpy as np
+import pandas as pd
+import streamlit as st
+import plotly.graph_objects as go
+from typing import Optional
+
+# Qiskit
+from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator
+
+# Anthropic
+try:
+    import anthropic
+    ANTHROPIC_AVAILABLE = True
+except ImportError:
+    ANTHROPIC_AVAILABLE = False
+
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+
+try:
+    from groq import Groq as GroqClient
+    GROQ_AVAILABLE = True
+except ImportError:
+    GROQ_AVAILABLE = False
+
+# Set env var from secrets if available (backup for anthropic library)
+import os
+try:
+    _secret_api = str(st.secrets["ANTHROPIC_API_KEY"]).strip().strip('"').strip("'")
+    if _secret_api.startswith("sk-ant"):
+        os.environ["ANTHROPIC_API_KEY"] = _secret_api
+except Exception:
+    pass
+
+try:
+    _gemini_key = str(st.secrets["GEMINI_API_KEY"]).strip().strip('"').strip("'")
+    if _gemini_key.startswith("AIza"):
+        os.environ["GEMINI_API_KEY"] = _gemini_key
+        if GEMINI_AVAILABLE:
+            genai.configure(api_key=_gemini_key)
+except Exception:
+    pass
+
+try:
+    _groq_key = str(st.secrets["GROQ_API_KEY"]).strip().strip('"').strip("'")
+    if _groq_key.startswith("gsk_"):
+        os.environ["GROQ_API_KEY"] = _groq_key
+except Exception:
+    pass
+
+
+# ============================================================
+# CONFIG
+# ============================================================
+st.set_page_config(
+    page_title="Quantum Oracle v0.7",
+    page_icon="🔮",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Theme toggle
+with st.sidebar:
+    st.markdown("### 🎨 Theme")
+    dark_mode = st.toggle("Dark Mode", value=True)
+
+if dark_mode:
+    bg = "#060608"; bg2 = "#0a0a0e"; border = "#1e1e28"; text = "#e8eaec"; text2 = "#a0a8b0"; accent = "#00ff88"
+    card_bg = "#0c0e12"; input_bg = "#0e1014"; sidebar_bg = "#0a0a0e"
+    # Content colors
+    label_dim = "#5a7a6a"; row_label = "#8aaaa0"; title_text = "#d0e0d8"
+    desc_text = "#a0b8a8"; task_text = "#8aaa98"; reason_text = "#b0a0c8"
+    week_num_active = "#00ff88"; week_num = "#3a7a6a"; users_text = "#6a9a8a"
+    threats_text = "#aa8888"
+else:
+    bg = "#f5f5f0"; bg2 = "#ffffff"; border = "#e0e0d8"; text = "#1a1a1a"; text2 = "#5a5a5a"; accent = "#00aa55"
+    card_bg = "#ffffff"; input_bg = "#fafaf8"; sidebar_bg = "#f0f0ea"
+    # Content colors
+    label_dim = "#5a6a5a"; row_label = "#4a5a4a"; title_text = "#1a2a1a"
+    desc_text = "#3a4a3a"; task_text = "#3a4a3a"; reason_text = "#4a3a5a"
+    week_num_active = "#00884a"; week_num = "#5a8a6a"; users_text = "#4a6a5a"
+    threats_text = "#8a4444"
+
+st.markdown(f"""
+<style>
+    /* === GLOBAL === */
+    .stApp {{ background-color: {bg}; color: {text}; }}
+    section[data-testid="stSidebar"] {{ background-color: {sidebar_bg}; border-right: 1px solid {border}; }}
+    .block-container {{ max-width: 1000px; padding-top: 2rem; }}
+
+    /* Hide Streamlit defaults */
+    #MainMenu, footer, header {{ visibility: hidden; }}
+    div[data-testid="stMetricValue"] {{ color: {accent}; }}
+    div[data-testid="stMetricLabel"] {{ color: {text2}; }}
+
+    /* Text colors */
+    p, span, li, div {{ color: {text}; }}
+    h1, h2, h3 {{ color: {text} !important; }}
+    label {{ color: {text2} !important; font-size: 0.8rem !important; letter-spacing: 1px !important; }}
+
+    /* === INPUTS === */
+    .stTextArea textarea, .stTextInput input, .stNumberInput input {{
+        background-color: {input_bg} !important;
+        border: 1px solid {border} !important;
+        color: {text} !important;
+        border-radius: 10px !important;
+    }}
+    .stTextArea textarea:focus, .stTextInput input:focus {{
+        border-color: {accent} !important;
+        box-shadow: 0 0 12px {accent}20 !important;
+    }}
+
+    /* Select boxes */
+    div[data-baseweb="select"] {{ background-color: {input_bg} !important; }}
+    div[data-baseweb="select"] * {{ color: {text} !important; }}
+
+    /* === BUTTON === */
+    .stButton > button {{
+        background: {'linear-gradient(135deg, #0a1a10, #0a1518)' if dark_mode else 'linear-gradient(135deg, #e8f5e8, #e0f0f0)'} !important;
+        border: 1px solid {accent}66 !important;
+        color: {accent} !important;
+        font-weight: 700 !important;
+        letter-spacing: 3px !important;
+        padding: 14px 24px !important;
+        border-radius: 12px !important;
+        font-size: 0.95rem !important;
+    }}
+    .stButton > button:hover {{
+        border-color: {accent} !important;
+        box-shadow: 0 0 20px {accent}25 !important;
+    }}
+
+    /* === TOGGLES — visible in both themes === */
+    div[data-testid="stToggle"] label span[data-testid="stMarkdownContainer"] {{ color: {text} !important; }}
+    div[data-testid="stToggle"] div[role="checkbox"] {{
+        background-color: {'#333' if dark_mode else '#bbb'} !important;
+        border: 1px solid {'#555' if dark_mode else '#999'} !important;
+    }}
+    div[data-testid="stToggle"] div[role="checkbox"][aria-checked="true"] {{
+        background-color: {accent} !important;
+        border-color: {accent} !important;
+    }}
+
+    /* === HEADER === */
+    .main-header {{ text-align: center; padding: 24px 0 32px; }}
+    .main-header .version {{
+        display: inline-block; color: {accent}; font-size: 0.65rem;
+        letter-spacing: 5px; padding: 5px 16px;
+        border: 1px solid {accent}35; border-radius: 20px;
+        background: {accent}08; margin-bottom: 16px;
+    }}
+    .main-header h1 {{
+        background: linear-gradient(135deg, {accent}, #00ccaa);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        font-size: 2.2rem; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.5px;
+    }}
+    .main-header .sub {{ color: {text2}; font-size: 0.85rem; letter-spacing: 1px; }}
+
+    /* === EXECUTIVE PANEL === */
+    .executive-panel {{
+        background: {card_bg};
+        border: 1px solid {border}; border-radius: 16px;
+        padding: 32px; margin-bottom: 28px;
+        position: relative; overflow: hidden;
+    }}
+    .executive-panel::before {{
+        content: ''; position: absolute; top: 0; left: 15%; right: 15%;
+        height: 1px; background: linear-gradient(90deg, transparent, {accent}55, transparent);
+    }}
+    .exec-label {{ color: {accent}; font-size: 0.7rem; letter-spacing: 4px; margin-bottom: 24px; font-weight: 600; }}
+
+    /* Tomorrow */
+    .tomorrow-box {{
+        background: {'#0d0d08' if dark_mode else '#fef9e8'}; 
+        border: 1px solid {'#2a2510' if dark_mode else '#e0d8a0'};
+        border-radius: 10px; padding: 16px 20px; margin-bottom: 22px;
+    }}
+    .tomorrow-label {{ color: {'#c8a020' if dark_mode else '#8a7010'}; font-size: 0.65rem; letter-spacing: 2px; font-weight: 700; margin-bottom: 6px; }}
+    .tomorrow-text {{ color: {'#e8d888' if dark_mode else '#5a4a10'}; font-size: 0.95rem; font-weight: 500; line-height: 1.7; }}
+
+    /* Strategy */
+    .strategy-name {{ color: {text}; font-size: 1.3rem; font-weight: 600; letter-spacing: -0.3px; }}
+
+    /* Metrics */
+    .metric-card {{
+        background: {card_bg}; border: 1px solid {border};
+        border-radius: 12px; padding: 18px; text-align: left;
+    }}
+    .metric-label {{ color: {text2}; font-size: 0.65rem; letter-spacing: 2px; text-transform: uppercase; }}
+    .metric-value {{ font-size: 1.3rem; font-weight: 600; }}
+    .metric-green {{ color: {'#00e878' if dark_mode else '#00884a'}; }}
+    .metric-cyan {{ color: {'#00bba8' if dark_mode else '#007868'}; }}
+    .metric-purple {{ color: {'#9878cc' if dark_mode else '#6644aa'}; }}
+    .metric-yellow {{ color: {'#c8a020' if dark_mode else '#8a7010'}; }}
+    .metric-red {{ color: {'#e84050' if dark_mode else '#cc2030'}; }}
+
+    /* Why box */
+    .why-box {{
+        background: {'#0c0a10' if dark_mode else '#f5f0fa'}; 
+        border: 1px solid {'#1a1525' if dark_mode else '#d0c0e0'};
+        border-radius: 10px; padding: 16px 20px; margin-top: 18px;
+    }}
+    .why-label {{ color: {'#9878cc' if dark_mode else '#6644aa'}; font-size: 0.65rem; letter-spacing: 2px; font-weight: 700; margin-bottom: 10px; }}
+
+    /* === QUANTUM PANEL === */
+    .quantum-panel {{
+        background: {'#08090e' if dark_mode else '#f0f4f8'}; 
+        border: 1px solid {'#12141e' if dark_mode else '#d0d8e0'};
+        border-radius: 14px; padding: 24px; margin-bottom: 20px;
+    }}
+    .quantum-label {{ color: {'#4488cc' if dark_mode else '#2266aa'}; font-size: 0.65rem; letter-spacing: 3px; font-weight: 700; }}
+
     /* === SCENARIO CARDS === */
     .scenario-card {{
         background: {card_bg}; border: 1px solid {border};
@@ -1364,21 +1598,31 @@ def call_gemini(prompt, raw_text=False, gemini_model="gemini-2.5-flash"):
 
 
 def call_ai(prompt, api_key, ai_engine="claude", raw_text=False, model="claude-sonnet-4-6", gemini_model="gemini-2.5-flash"):
-    """Universal AI call — supports Claude, Gemini, Groq, or all three."""
+    """Universal AI call — supports any combination of engines."""
     if ai_engine == "gemini":
         return call_gemini(prompt, raw_text, gemini_model)
     elif ai_engine == "groq":
         return call_groq(prompt, raw_text)
-    elif ai_engine == "🧠 MULTI (all 3)":
-        claude_result = call_claude(prompt, api_key, raw_text, model)
-        gemini_result = call_gemini(prompt, raw_text, gemini_model)
-        groq_result = call_groq(prompt, raw_text)
-        st.session_state["multi_ai_results"] = {
-            "claude": claude_result,
-            "gemini": gemini_result,
-            "groq": groq_result
-        }
-        return claude_result or gemini_result or groq_result
+    elif "MULTI" in str(ai_engine):
+        results = {}
+        primary = None
+        if st.session_state.get("use_claude") and api_key:
+            r = call_claude(prompt, api_key, raw_text, model)
+            if r:
+                results["claude"] = r
+                primary = primary or r
+        if st.session_state.get("use_gemini"):
+            r = call_gemini(prompt, raw_text, gemini_model)
+            if r:
+                results["gemini"] = r
+                primary = primary or r
+        if st.session_state.get("use_groq"):
+            r = call_groq(prompt, raw_text)
+            if r:
+                results["groq"] = r
+                primary = primary or r
+        st.session_state["multi_ai_results"] = results
+        return primary
     else:
         return call_claude(prompt, api_key, raw_text, model)
 
@@ -1462,18 +1706,35 @@ with st.sidebar:
     if groq_key and groq_key.startswith("gsk_"):
         st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ Groq ({groq_key[:12]}...)</div>', unsafe_allow_html=True)
 
-    # AI Engine selector
+    # AI Engine toggles — pick any combination
     st.markdown("### 🤖 AI Engine")
-    ai_engines = ["claude"]
-    if gemini_key:
-        ai_engines.append("gemini")
-    if groq_key:
-        ai_engines.append("groq")
-    if len(ai_engines) >= 3:
-        ai_engines.append("🧠 MULTI (all 3)")
-    elif len(ai_engines) == 2:
-        ai_engines.append(f"🧠 MULTI ({'+'.join(ai_engines[:2])})")
-    ai_engine = st.selectbox("Engine", ai_engines, index=0, label_visibility="collapsed")
+    col_ai1, col_ai2, col_ai3 = st.columns(3)
+    with col_ai1:
+        use_claude = st.toggle("Claude", value=True if secret_key else False, key="use_claude")
+    with col_ai2:
+        use_gemini = st.toggle("Gemini", value=True if gemini_key else False, key="use_gemini")
+    with col_ai3:
+        use_groq = st.toggle("Groq", value=False, key="use_groq")
+    
+    # Build ai_engine from toggles
+    active_engines = []
+    if use_claude and secret_key:
+        active_engines.append("claude")
+    if use_gemini and gemini_key:
+        active_engines.append("gemini")
+    if use_groq and groq_key:
+        active_engines.append("groq")
+    
+    if len(active_engines) == 0:
+        active_engines = ["claude"]  # fallback
+    
+    if len(active_engines) >= 2:
+        ai_engine = "🧠 MULTI (all 3)"
+    else:
+        ai_engine = active_engines[0]
+    
+    engine_label = " + ".join(active_engines) if len(active_engines) > 1 else active_engines[0]
+    st.markdown(f'<div style="color:{text2}; font-size:0.7rem;">Active: {engine_label}</div>', unsafe_allow_html=True)
 
     st.markdown("### 🤖 Claude Model")
     model_options = {
