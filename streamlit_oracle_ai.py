@@ -88,6 +88,7 @@ with st.sidebar:
 if dark_mode:
     bg = "#060608"; bg2 = "#0a0a0e"; border = "#1e1e28"; text = "#e8eaec"; text2 = "#a0a8b0"; accent = "#00ff88"
     card_bg = "#0c0e12"; input_bg = "#0e1014"; sidebar_bg = "#0a0a0e"
+    chart_paper_bg = "#0c0e12"; chart_plot_bg = "#0c0e12"
     # Content colors
     label_dim = "#5a7a6a"; row_label = "#8aaaa0"; title_text = "#d0e0d8"
     desc_text = "#a0b8a8"; task_text = "#8aaa98"; reason_text = "#b0a0c8"
@@ -96,6 +97,7 @@ if dark_mode:
 else:
     bg = "#f5f5f0"; bg2 = "#ffffff"; border = "#e0e0d8"; text = "#1a1a1a"; text2 = "#5a5a5a"; accent = "#00aa55"
     card_bg = "#ffffff"; input_bg = "#fafaf8"; sidebar_bg = "#f0f0ea"
+    chart_paper_bg = "#ffffff"; chart_plot_bg = "#f8f8f5"
     # Content colors
     label_dim = "#5a6a5a"; row_label = "#4a5a4a"; title_text = "#1a2a1a"
     desc_text = "#3a4a3a"; task_text = "#3a4a3a"; reason_text = "#4a3a5a"
@@ -1481,13 +1483,19 @@ with st.sidebar:
     with col_all:
         use_all = st.checkbox("⚡ All", value=False, key="use_all_ai")
     
-    col_ai1, col_ai2, col_ai3 = st.columns(3)
-    with col_ai1:
-        use_claude = st.checkbox("Claude", value=use_all or (True if secret_key else False), key="use_claude")
-    with col_ai2:
-        use_gemini = st.checkbox("Gemini", value=use_all or (True if gemini_key else False), key="use_gemini")
-    with col_ai3:
-        use_groq = st.checkbox("Groq", value=use_all, key="use_groq")
+    if use_all:
+        use_claude = True
+        use_gemini = True
+        use_groq = True
+        st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">☑ Claude  ☑ Gemini  ☑ Groq</div>', unsafe_allow_html=True)
+    else:
+        col_ai1, col_ai2, col_ai3 = st.columns(3)
+        with col_ai1:
+            use_claude = st.checkbox("Claude", value=bool(secret_key), key="use_claude")
+        with col_ai2:
+            use_gemini = st.checkbox("Gemini", value=bool(gemini_key), key="use_gemini")
+        with col_ai3:
+            use_groq = st.checkbox("Groq", value=False, key="use_groq")
     
     # Build ai_engine from toggles
     active_engines = []
@@ -2245,7 +2253,7 @@ if "scenarios" in st.session_state:
     gauge_fig.update_layout(
         height=180,
         margin=dict(l=30, r=30, t=40, b=10),
-        paper_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor=chart_paper_bg,
         font=dict(color=text)
     )
     st.plotly_chart(gauge_fig, use_container_width=True)
@@ -2349,7 +2357,7 @@ if "scenarios" in st.session_state:
                 xaxis=dict(title="Iteration", color='#3a4a5a' if dark_mode else '#8a8a8a', gridcolor='#12141a' if dark_mode else '#e0e0e0', zeroline=False),
                 yaxis=dict(title="Cost", color='#3a4a5a' if dark_mode else '#8a8a8a', gridcolor='#12141a' if dark_mode else '#e0e0e0', zeroline=False),
                 plot_bgcolor='#08090e' if dark_mode else '#fafafa',
-                paper_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor=chart_paper_bg,
                 font=dict(color='#5a6a7a' if dark_mode else '#4a4a4a', family="monospace"),
                 height=320,
                 margin=dict(l=40, r=20, t=36, b=40),
@@ -2505,7 +2513,7 @@ if "scenarios" in st.session_state:
         fig_3j.add_trace(go.Bar(name="🧠 AI", x=names, y=[s["success_probability"] for s in scenarios], marker_color="#2266aa"))
         fig_3j.add_trace(go.Bar(name="🎲 Monte Carlo", x=names, y=[next((m["mc_score"] for m in mc_results if m["scenario_id"] == s["id"]), 0) for s in scenarios], marker_color="#cc8800"))
         fig_3j.add_trace(go.Bar(name="⚛️ Quantum", x=names, y=[next((r["quantum_score"] for r in quantum.get("results", []) if r["scenario_id"] == s["id"]), 0) for s in scenarios], marker_color="#00cc66"))
-        fig_3j.update_layout(barmode="group", height=300, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        fig_3j.update_layout(barmode="group", height=300, paper_bgcolor=chart_paper_bg, plot_bgcolor=chart_plot_bg,
                             font=dict(color=text, size=10), legend=dict(orientation="h", y=1.15),
                             margin=dict(l=30, r=20, t=20, b=60), yaxis=dict(gridcolor=border))
         st.plotly_chart(fig_3j, use_container_width=True)
@@ -2565,7 +2573,7 @@ if "scenarios" in st.session_state:
 
         fig_multi.update_layout(
             barmode="group", height=300,
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor=chart_paper_bg, plot_bgcolor=chart_plot_bg,
             font=dict(color=text, size=10),
             legend=dict(orientation="h", y=1.15),
             margin=dict(l=30, r=20, t=20, b=60),
@@ -2629,7 +2637,7 @@ if "scenarios" in st.session_state:
         fig_noise.add_trace(go.Bar(name="Noisy QPU (2%)", x=[s["name"][:20] for s in scenarios],
             y=[next((n["noisy_score"] for n in noise_results if n["scenario_id"] == s["id"]), 0) for s in scenarios],
             marker_color="#cc4444", opacity=0.7))
-        fig_noise.update_layout(barmode="group", height=250, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        fig_noise.update_layout(barmode="group", height=250, paper_bgcolor=chart_paper_bg, plot_bgcolor=chart_plot_bg,
                                font=dict(color=text, size=10), legend=dict(orientation="h", y=1.15),
                                margin=dict(l=30, r=20, t=20, b=60), yaxis=dict(gridcolor=border))
         st.plotly_chart(fig_noise, use_container_width=True)
@@ -2649,7 +2657,7 @@ if "scenarios" in st.session_state:
             texttemplate="%{text}", textfont={"size": 11},
             hovertemplate="Scenario A: %{y}<br>Scenario B: %{x}<br>Correlation: %{z:.3f}<extra></extra>"
         ))
-        fig_xq.update_layout(height=350, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        fig_xq.update_layout(height=350, paper_bgcolor=chart_paper_bg, plot_bgcolor=chart_plot_bg,
                             font=dict(color=text, size=9), margin=dict(l=120, r=20, t=20, b=80),
                             xaxis=dict(tickangle=-45))
         st.plotly_chart(fig_xq, use_container_width=True)
@@ -2715,7 +2723,7 @@ if "scenarios" in st.session_state:
             ))
             fig_qaoa.update_layout(
                 title=dict(text="QAOA Convergence", font=dict(size=12, color=text2)),
-                height=250, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                height=250, paper_bgcolor=chart_paper_bg, plot_bgcolor=chart_plot_bg,
                 font=dict(color=text, size=10),
                 margin=dict(l=40, r=20, t=40, b=40),
                 xaxis=dict(title="Iteration", gridcolor=border),
@@ -2784,7 +2792,7 @@ if "scenarios" in st.session_state:
 
         fig_bcg.update_layout(
             height=400, showlegend=False,
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor=chart_paper_bg, plot_bgcolor=chart_plot_bg,
             font=dict(color=text, size=10),
             margin=dict(l=50, r=20, t=20, b=50),
             xaxis=dict(title="Market Share / Success Probability %", gridcolor=border, range=[0, 100]),
@@ -2830,7 +2838,7 @@ if "scenarios" in st.session_state:
 
         fig_abm.update_layout(
             height=300, barmode="relative",
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor=chart_paper_bg, plot_bgcolor=chart_plot_bg,
             font=dict(color=text, size=10),
             legend=dict(orientation="h", y=1.15),
             margin=dict(l=40, r=20, t=20, b=40),
@@ -2848,7 +2856,7 @@ if "scenarios" in st.session_state:
 
         fig_types.update_layout(
             height=250,
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor=chart_paper_bg, plot_bgcolor=chart_plot_bg,
             font=dict(color=text, size=10),
             legend=dict(orientation="h", y=1.15),
             margin=dict(l=40, r=20, t=20, b=40),
@@ -3254,7 +3262,9 @@ Use specific numbers, not ranges."""
         "scenarios": scenarios,
         "execution_plan": exec_data.get("execution_plan") if exec_data else None,
         "money_projection": exec_data.get("money_projection") if exec_data else None,
-        "quantum_reasoning": exec_data.get("quantum_reasoning") if exec_data else None
+        "quantum_reasoning": exec_data.get("quantum_reasoning") if exec_data else None,
+        "executive_summary": st.session_state.get("exec_brief"),
+        "market_context": st.session_state.get("market_context")
     }
 
     export_json = json.dumps(export_data, ensure_ascii=False, indent=2)
