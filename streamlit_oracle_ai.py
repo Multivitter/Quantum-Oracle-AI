@@ -1685,10 +1685,15 @@ If they ask what to analyze — suggest a concrete business scenario.
 Respond in the same language as the user."""
         
         with st.spinner("🤖 Thinking..."):
-            reply = call_ai(chat_prompt, api_key, ai_engine=ai_engine, raw_text=True, model=claude_model, gemini_model=gemini_model)
-        
-        if reply and isinstance(reply, str):
-            st.session_state["chat_history"].append({"role": "ai", "text": reply})
+            try:
+                reply = call_ai(chat_prompt, api_key, ai_engine=ai_engine, raw_text=True, model=claude_model, gemini_model=gemini_model)
+                if reply:
+                    reply_text = str(reply) if not isinstance(reply, str) else reply
+                    st.session_state["chat_history"].append({"role": "ai", "text": reply_text})
+                else:
+                    st.session_state["chat_history"].append({"role": "ai", "text": "⚠️ No response. Check API keys in sidebar."})
+            except Exception as e:
+                st.session_state["chat_history"].append({"role": "ai", "text": f"⚠️ Error: {e}"})
         st.rerun()
 
 attach_data = st.toggle("📎 Attach Data", value=False, help="Upload file, Google Sheets, or Live API")
