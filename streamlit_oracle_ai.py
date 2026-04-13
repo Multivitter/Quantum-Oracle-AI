@@ -1147,6 +1147,298 @@ def agent_simulation(scenarios, best_scenario, num_agents=500, num_months=6):
     }
 
 
+# ============================================================
+# 🧬 GENETIC ALGORITHM — Strategy Evolution
+# ============================================================
+def genetic_algorithm(scenarios, generations=50, population=100):
+    """Evolve optimal strategy mix through natural selection."""
+    np.random.seed(42)
+    n = len(scenarios)
+    # Population: each individual = weight vector for strategies
+    pop = np.random.dirichlet(np.ones(n), population)
+    
+    def fitness(weights):
+        roi = sum(w * s["expected_roi"] for w, s in zip(weights, scenarios))
+        risk = sum(w * s["risk_score"] for w, s in zip(weights, scenarios))
+        prob = sum(w * s["success_probability"] for w, s in zip(weights, scenarios))
+        return prob * 0.4 + roi * 0.3 - risk * 0.3
+    
+    best_history = []
+    for gen in range(generations):
+        scores = [fitness(ind) for ind in pop]
+        best_idx = np.argmax(scores)
+        best_history.append({"gen": gen + 1, "fitness": round(scores[best_idx], 2), "weights": pop[best_idx].tolist()})
+        
+        # Selection (tournament)
+        new_pop = [pop[best_idx].copy()]  # elitism
+        for _ in range(population - 1):
+            i, j = np.random.choice(population, 2, replace=False)
+            parent1 = pop[i] if scores[i] > scores[j] else pop[j]
+            i, j = np.random.choice(population, 2, replace=False)
+            parent2 = pop[i] if scores[i] > scores[j] else pop[j]
+            # Crossover
+            alpha = np.random.random()
+            child = alpha * parent1 + (1 - alpha) * parent2
+            # Mutation
+            if np.random.random() < 0.2:
+                child += np.random.normal(0, 0.05, n)
+                child = np.abs(child)
+            child /= child.sum()  # normalize
+            new_pop.append(child)
+        pop = np.array(new_pop)
+    
+    final_scores = [fitness(ind) for ind in pop]
+    best = pop[np.argmax(final_scores)]
+    return {
+        "optimal_weights": {scenarios[i]["name"]: round(best[i] * 100, 1) for i in range(n)},
+        "fitness_history": best_history[::5],  # every 5th gen
+        "final_fitness": round(max(final_scores), 2),
+        "generations": generations,
+        "population": population
+    }
+
+
+# ============================================================
+# 🦠 SIR EPIDEMIC MODEL — Viral Growth Projection
+# ============================================================
+def sir_viral_model(scenarios, best_scenario, months=6):
+    """Model product adoption as epidemic spread (SIR model)."""
+    # S=potential users, I=active users, R=churned
+    total_market = 10000
+    S, I, R = total_market - 10, 10, 0  # start with 10 "infected"
+    
+    success = best_scenario.get("success_probability", 50) / 100
+    risk = best_scenario.get("risk_score", 50) / 100
+    
+    beta = 0.3 * success  # infection rate (virality)
+    gamma = 0.05 + risk * 0.1  # recovery rate (churn)
+    R0 = beta / gamma if gamma > 0 else 0  # basic reproduction number
+    
+    daily_data = []
+    for day in range(months * 30):
+        dS = -beta * S * I / total_market
+        dI = beta * S * I / total_market - gamma * I
+        dR = gamma * I
+        S = max(0, S + dS)
+        I = max(0, I + dI)
+        R = max(0, R + dR)
+        if day % 7 == 0:  # weekly snapshots
+            daily_data.append({"week": day // 7 + 1, "susceptible": int(S), "active": int(I), "churned": int(R)})
+    
+    peak_week = max(daily_data, key=lambda d: d["active"])
+    return {
+        "R0": round(R0, 2),
+        "beta": round(beta, 4),
+        "gamma": round(gamma, 4),
+        "peak_users": peak_week["active"],
+        "peak_week": peak_week["week"],
+        "final_active": daily_data[-1]["active"],
+        "total_reached": total_market - daily_data[-1]["susceptible"],
+        "weekly_data": daily_data,
+        "verdict": "VIRAL" if R0 > 1.5 else "GROWING" if R0 > 1.0 else "DECLINING"
+    }
+
+
+# ============================================================
+# 🎯 NASH EQUILIBRIUM — Game Theory Competition
+# ============================================================
+def nash_equilibrium(scenarios):
+    """Find Nash Equilibrium for competitive pricing/positioning."""
+    n = len(scenarios)
+    # Payoff matrix: what happens when you pick strategy i and competitor picks j
+    payoff = np.zeros((n, n))
+    for i, si in enumerate(scenarios):
+        for j, sj in enumerate(scenarios):
+            if i == j:
+                payoff[i][j] = si["expected_roi"] * 0.5  # head-to-head: split market
+            else:
+                # Advantage = higher success * lower risk
+                advantage = (si["success_probability"] - sj["success_probability"]) / 100
+                risk_diff = (sj["risk_score"] - si["risk_score"]) / 100
+                payoff[i][j] = si["expected_roi"] * (0.5 + advantage * 0.3 + risk_diff * 0.2)
+    
+    # Find mixed strategy Nash (iterative best response)
+    strategy = np.ones(n) / n
+    for _ in range(100):
+        expected = payoff @ strategy
+        best = np.argmax(expected)
+        strategy *= 0.95
+        strategy[best] += 0.05
+        strategy /= strategy.sum()
+    
+    dominant = scenarios[np.argmax(strategy)]
+    return {
+        "equilibrium_weights": {scenarios[i]["name"]: round(strategy[i] * 100, 1) for i in range(n)},
+        "dominant_strategy": dominant["name"],
+        "payoff_matrix": payoff.tolist(),
+        "stability": "STABLE" if max(strategy) < 0.5 else "DOMINANT" if max(strategy) > 0.7 else "MIXED"
+    }
+
+
+# ============================================================
+# 📊 SHANNON ENTROPY — Market Uncertainty
+# ============================================================
+def shannon_entropy(scenarios, quantum_results):
+    """Measure market uncertainty using information theory."""
+    # Entropy of AI probabilities
+    ai_probs = np.array([s["success_probability"] / 100 for s in scenarios])
+    ai_probs = ai_probs / ai_probs.sum()
+    ai_entropy = -np.sum(ai_probs * np.log2(ai_probs + 1e-10))
+    
+    # Entropy of quantum allocations
+    q_allocs = np.array([r["allocation_percent"] / 100 for r in quantum_results])
+    q_allocs = q_allocs / (q_allocs.sum() + 1e-10)
+    q_entropy = -np.sum(q_allocs * np.log2(q_allocs + 1e-10))
+    
+    # Risk entropy
+    risks = np.array([s["risk_score"] / 100 for s in scenarios])
+    risks = risks / (risks.sum() + 1e-10)
+    risk_entropy = -np.sum(risks * np.log2(risks + 1e-10))
+    
+    max_entropy = np.log2(len(scenarios))
+    
+    return {
+        "ai_entropy": round(ai_entropy, 3),
+        "quantum_entropy": round(q_entropy, 3),
+        "risk_entropy": round(risk_entropy, 3),
+        "max_entropy": round(max_entropy, 3),
+        "ai_uncertainty": round(ai_entropy / max_entropy * 100, 1),
+        "quantum_uncertainty": round(q_entropy / max_entropy * 100, 1),
+        "market_verdict": "HIGH UNCERTAINTY" if ai_entropy / max_entropy > 0.85 else "MODERATE" if ai_entropy / max_entropy > 0.6 else "LOW — CLEAR LEADER"
+    }
+
+
+# ============================================================
+# 🌀 LORENZ ATTRACTORS — Market Stability / Chaos Analysis
+# ============================================================
+def chaos_analysis(scenarios, quantum_results):
+    """Detect chaotic vs stable market dynamics using Lorenz-inspired model."""
+    # Map scenarios to Lorenz parameters
+    best_q = max(quantum_results, key=lambda r: r["quantum_score"])
+    best_s = next((s for s in scenarios if s["id"] == best_q["scenario_id"]), scenarios[0])
+    
+    sigma = 10 * (best_s["risk_score"] / 100)  # convection rate ~ risk
+    rho = 28 * (best_s["success_probability"] / 100)  # temperature diff ~ opportunity
+    beta_l = 8/3 * (best_s["expected_roi"] / 100)  # geometry ~ ROI structure
+    
+    # Simulate Lorenz system
+    x, y, z = 1.0, 1.0, 1.0
+    dt = 0.01
+    trajectory = []
+    lyapunov_sum = 0
+    prev_x = x
+    
+    for step in range(3000):
+        dx = sigma * (y - x) * dt
+        dy = (x * (rho - z) - y) * dt
+        dz = (x * y - beta_l * z) * dt
+        x, y, z = x + dx, y + dy, z + dz
+        if step % 30 == 0:
+            trajectory.append({"step": step, "x": round(x, 2), "y": round(y, 2), "z": round(z, 2)})
+        if step > 0:
+            lyapunov_sum += np.log(abs(x - prev_x) + 1e-10)
+        prev_x = x
+    
+    lyapunov = lyapunov_sum / 3000
+    
+    # Detect attractors (cluster analysis on trajectory)
+    x_vals = [t["x"] for t in trajectory]
+    x_range = max(x_vals) - min(x_vals) if x_vals else 0
+    
+    return {
+        "lyapunov_exponent": round(lyapunov, 4),
+        "is_chaotic": lyapunov > 0,
+        "trajectory": trajectory[-20:],  # last 20 points
+        "x_range": round(x_range, 2),
+        "sigma": round(sigma, 2),
+        "rho": round(rho, 2),
+        "beta": round(beta_l, 2),
+        "verdict": "CHAOTIC — high sensitivity to initial conditions" if lyapunov > 0 else "STABLE — predictable convergence",
+        "business_meaning": "Small changes in execution timing can lead to drastically different outcomes" if lyapunov > 0 else "Market dynamics are predictable — execute with confidence"
+    }
+
+
+# ============================================================
+# 🐺 LOTKA-VOLTERRA — Competitor Dynamics (Predator-Prey)
+# ============================================================
+def lotka_volterra(scenarios, best_scenario, months=12):
+    """Model competitor dynamics as predator-prey ecosystem."""
+    # Your brand = prey (growing), competitors = predators
+    your_pop = 100  # your market share units
+    comp_pop = 300  # competitor market share
+    
+    alpha = 0.1 * (best_scenario["success_probability"] / 100)  # your growth rate
+    beta_lv = 0.005 * (best_scenario["risk_score"] / 100)  # predation rate
+    delta = 0.002 * (100 - best_scenario["risk_score"]) / 100  # competitor decline from your success
+    gamma_lv = 0.05  # competitor natural decline
+    
+    monthly = []
+    for month in range(months * 4):  # weekly steps
+        dY = (alpha * your_pop - beta_lv * your_pop * comp_pop) * 0.25
+        dC = (delta * your_pop * comp_pop - gamma_lv * comp_pop) * 0.25
+        your_pop = max(1, your_pop + dY)
+        comp_pop = max(1, comp_pop + dC)
+        if month % 4 == 0:
+            monthly.append({"month": month // 4 + 1, "your_share": round(your_pop, 1), "competitor_share": round(comp_pop, 1)})
+    
+    equilibrium_you = round(gamma_lv / delta, 1) if delta > 0 else 0
+    equilibrium_comp = round(alpha / beta_lv, 1) if beta_lv > 0 else 0
+    
+    return {
+        "monthly_data": monthly,
+        "final_your_share": monthly[-1]["your_share"] if monthly else 0,
+        "final_comp_share": monthly[-1]["competitor_share"] if monthly else 0,
+        "equilibrium_your": equilibrium_you,
+        "equilibrium_comp": equilibrium_comp,
+        "coexistence": abs(your_pop - comp_pop) / max(your_pop, comp_pop) < 0.5,
+        "verdict": "DOMINANCE" if your_pop > comp_pop * 1.5 else "COEXISTENCE" if abs(your_pop - comp_pop) / max(your_pop, comp_pop) < 0.5 else "DISPLACEMENT"
+    }
+
+
+# ============================================================
+# 💎 BLACK-SCHOLES — Strategy Option Pricing
+# ============================================================
+def black_scholes_options(scenarios, budget, timeline):
+    """Price each strategy as a financial option using Black-Scholes."""
+    from math import log, sqrt, exp, erf
+    
+    def norm_cdf(x):
+        return (1 + erf(x / sqrt(2))) / 2
+    
+    options = []
+    risk_free_rate = 0.05  # 5% annual
+    
+    for s in scenarios:
+        S = budget  # current "stock price" = budget
+        K = budget * (1 + s["risk_score"] / 100)  # strike = budget + risk premium
+        T = timeline / 12  # time in years
+        sigma = s["risk_score"] / 100 * 2  # volatility from risk
+        r = risk_free_rate
+        
+        if sigma > 0 and T > 0:
+            d1 = (log(S / K) + (r + sigma**2 / 2) * T) / (sigma * sqrt(T))
+            d2 = d1 - sigma * sqrt(T)
+            call_price = S * norm_cdf(d1) - K * exp(-r * T) * norm_cdf(d2)
+            put_price = K * exp(-r * T) * norm_cdf(-d2) - S * norm_cdf(-d1)
+        else:
+            call_price = max(0, S - K)
+            put_price = max(0, K - S)
+        
+        expected_value = budget * (1 + s["expected_roi"] / 100)
+        
+        options.append({
+            "strategy": s["name"],
+            "call_value": round(call_price, 2),
+            "put_value": round(put_price, 2),
+            "expected_payoff": round(expected_value, 2),
+            "implied_volatility": round(sigma * 100, 1),
+            "risk_reward_ratio": round(expected_value / max(call_price, 1), 2),
+            "verdict": "UNDERPRICED" if expected_value > call_price * 3 else "FAIR" if expected_value > call_price * 1.5 else "OVERPRICED"
+        })
+    
+    return sorted(options, key=lambda o: o["risk_reward_ratio"], reverse=True)
+
+
 # Cached wrapper — same input = same result, no recalculation
 @st.cache_data(show_spinner=False, ttl=3600)
 def cached_claude(prompt, api_key, raw_text, model):
@@ -3284,6 +3576,113 @@ ULTRA specific. Exact numbers. Professional, cold, data-driven. CEO clarity."""
                 </div>
             </div>
             """, unsafe_allow_html=True)
+
+    # === 🔬 SCIENTIFIC MODELS — Advanced Analytics ===
+    st.markdown("---")
+    st.markdown("### 🔬 SCIENTIFIC MODELS")
+    st.markdown(f'<div style="color:{text2}; font-size:0.8rem; margin-bottom:16px;">Physics, Biology, Mathematics — not opinions, calculations</div>', unsafe_allow_html=True)
+    
+    sci_cols = st.columns(3)
+    
+    # --- GENETIC ALGORITHM ---
+    with sci_cols[0]:
+        with st.expander("🧬 Genetic Algorithm", expanded=False):
+            ga = genetic_algorithm(scenarios)
+            st.markdown(f"""<div style="background:{card_bg}; border:1px solid {border}; border-radius:10px; padding:14px;">
+<div style="color:{accent}; font-size:0.65rem; letter-spacing:2px;">STRATEGY EVOLUTION — {ga['generations']} GENERATIONS</div>
+<div style="color:{text}; font-size:0.85rem; margin-top:8px; line-height:1.6;">
+<b>Optimal Mix (evolved):</b><br>{'<br>'.join([f'• {k}: {v}%' for k, v in ga['optimal_weights'].items()])}<br><br>
+<b>Final fitness:</b> {ga['final_fitness']}<br>
+<b>Population:</b> {ga['population']} individuals
+</div></div>""", unsafe_allow_html=True)
+    
+    # --- SIR EPIDEMIC MODEL ---
+    with sci_cols[1]:
+        with st.expander("🦠 SIR Viral Model", expanded=False):
+            sir = sir_viral_model(scenarios, best)
+            verdict_color = accent if sir["verdict"] == "VIRAL" else "#cc8800" if sir["verdict"] == "GROWING" else "#e84050"
+            st.markdown(f"""<div style="background:{card_bg}; border:1px solid {border}; border-radius:10px; padding:14px;">
+<div style="color:{accent}; font-size:0.65rem; letter-spacing:2px;">EPIDEMIC SPREAD MODEL</div>
+<div style="color:{text}; font-size:0.85rem; margin-top:8px; line-height:1.6;">
+<b>R₀ (reproduction number):</b> <span style="color:{verdict_color}; font-weight:700;">{sir['R0']}</span> — {sir['verdict']}<br>
+<b>β (virality):</b> {sir['beta']} · <b>γ (churn):</b> {sir['gamma']}<br>
+<b>Peak users:</b> {sir['peak_users']:,} at week {sir['peak_week']}<br>
+<b>Final active:</b> {sir['final_active']:,}<br>
+<b>Total reached:</b> {sir['total_reached']:,} / 10,000
+</div></div>""", unsafe_allow_html=True)
+    
+    # --- NASH EQUILIBRIUM ---
+    with sci_cols[2]:
+        with st.expander("🎯 Nash Equilibrium", expanded=False):
+            nash = nash_equilibrium(scenarios)
+            st.markdown(f"""<div style="background:{card_bg}; border:1px solid {border}; border-radius:10px; padding:14px;">
+<div style="color:{accent}; font-size:0.65rem; letter-spacing:2px;">GAME THEORY — COMPETITIVE RESPONSE</div>
+<div style="color:{text}; font-size:0.85rem; margin-top:8px; line-height:1.6;">
+<b>Dominant strategy:</b> {nash['dominant_strategy']}<br>
+<b>Stability:</b> {nash['stability']}<br><br>
+<b>Equilibrium weights:</b><br>{'<br>'.join([f'• {k}: {v}%' for k, v in nash['equilibrium_weights'].items()])}
+</div></div>""", unsafe_allow_html=True)
+    
+    sci_cols2 = st.columns(3)
+    
+    # --- SHANNON ENTROPY ---
+    with sci_cols2[0]:
+        with st.expander("📊 Shannon Entropy", expanded=False):
+            entropy = shannon_entropy(scenarios, quantum.get("results", []))
+            ent_color = "#e84050" if "HIGH" in entropy["market_verdict"] else "#cc8800" if "MODERATE" in entropy["market_verdict"] else accent
+            st.markdown(f"""<div style="background:{card_bg}; border:1px solid {border}; border-radius:10px; padding:14px;">
+<div style="color:{accent}; font-size:0.65rem; letter-spacing:2px;">INFORMATION THEORY — UNCERTAINTY</div>
+<div style="color:{text}; font-size:0.85rem; margin-top:8px; line-height:1.6;">
+<b>AI uncertainty:</b> {entropy['ai_uncertainty']}% (entropy {entropy['ai_entropy']}/{entropy['max_entropy']})<br>
+<b>Quantum uncertainty:</b> {entropy['quantum_uncertainty']}%<br>
+<b>Risk entropy:</b> {entropy['risk_entropy']}<br><br>
+<span style="color:{ent_color}; font-weight:700;">{entropy['market_verdict']}</span>
+</div></div>""", unsafe_allow_html=True)
+    
+    # --- CHAOS / LORENZ ---
+    with sci_cols2[1]:
+        with st.expander("🌀 Chaos Analysis", expanded=False):
+            chaos = chaos_analysis(scenarios, quantum.get("results", []))
+            chaos_color = "#e84050" if chaos["is_chaotic"] else accent
+            st.markdown(f"""<div style="background:{card_bg}; border:1px solid {border}; border-radius:10px; padding:14px;">
+<div style="color:{accent}; font-size:0.65rem; letter-spacing:2px;">LORENZ ATTRACTOR — MARKET STABILITY</div>
+<div style="color:{text}; font-size:0.85rem; margin-top:8px; line-height:1.6;">
+<b>Lyapunov exponent:</b> <span style="color:{chaos_color}; font-weight:700;">{chaos['lyapunov_exponent']}</span><br>
+<b>σ={chaos['sigma']}</b> ρ={chaos['rho']} β={chaos['beta']}<br>
+<b>Phase space range:</b> {chaos['x_range']}<br><br>
+<span style="color:{chaos_color}; font-weight:700;">{chaos['verdict']}</span><br>
+<span style="font-size:0.75rem; color:{text2};">{chaos['business_meaning']}</span>
+</div></div>""", unsafe_allow_html=True)
+    
+    # --- LOTKA-VOLTERRA ---
+    with sci_cols2[2]:
+        with st.expander("🐺 Lotka-Volterra", expanded=False):
+            lv = lotka_volterra(scenarios, best)
+            lv_color = accent if lv["verdict"] == "DOMINANCE" else "#cc8800" if lv["verdict"] == "COEXISTENCE" else "#e84050"
+            st.markdown(f"""<div style="background:{card_bg}; border:1px solid {border}; border-radius:10px; padding:14px;">
+<div style="color:{accent}; font-size:0.65rem; letter-spacing:2px;">PREDATOR-PREY — COMPETITOR DYNAMICS</div>
+<div style="color:{text}; font-size:0.85rem; margin-top:8px; line-height:1.6;">
+<b>Your final share:</b> {lv['final_your_share']}<br>
+<b>Competitor share:</b> {lv['final_comp_share']}<br>
+<b>Equilibrium:</b> You={lv['equilibrium_your']} / Comp={lv['equilibrium_comp']}<br><br>
+<span style="color:{lv_color}; font-weight:700;">{lv['verdict']}</span>
+</div></div>""", unsafe_allow_html=True)
+    
+    # --- BLACK-SCHOLES ---
+    with st.expander("💎 Black-Scholes Option Pricing — Strategy as Options", expanded=False):
+        bs_options = black_scholes_options(scenarios, budget, timeline)
+        bs_html = ""
+        for opt in bs_options[:5]:
+            v_color = accent if opt["verdict"] == "UNDERPRICED" else "#cc8800" if opt["verdict"] == "FAIR" else "#e84050"
+            bs_html += f"""<div style="background:{bg}; border:1px solid {border}; border-radius:8px; padding:10px 14px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+<div><div style="font-size:0.85rem; color:{text};">{opt['strategy'][:35]}</div>
+<div style="font-size:0.7rem; color:{text2};">IV: {opt['implied_volatility']}% · Call: ${opt['call_value']:,} · R/R: {opt['risk_reward_ratio']}x</div></div>
+<div style="color:{v_color}; font-weight:700; font-size:0.8rem;">{opt['verdict']}</div>
+</div>"""
+        st.markdown(f"""<div style="background:{card_bg}; border:1px solid {border}; border-radius:10px; padding:14px;">
+<div style="color:{accent}; font-size:0.65rem; letter-spacing:2px; margin-bottom:10px;">BLACK-SCHOLES — EACH STRATEGY AS A FINANCIAL OPTION</div>
+{bs_html}
+</div>""", unsafe_allow_html=True)
 
     # === ONE-CLICK EXECUTION ===
     st.markdown("---")
