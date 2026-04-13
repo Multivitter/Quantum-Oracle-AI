@@ -152,19 +152,33 @@ st.markdown(f"""
         box-shadow: 0 0 20px {accent}25 !important;
     }}
 
-    /* === TOGGLES — bordered containers === */
+    /* === TOGGLES — visible in both themes === */
     div[data-testid="stToggle"] {{
-        background: {'rgba(255,255,255,0.03)' if dark_mode else 'rgba(0,0,0,0.04)'} !important;
-        border: 1.5px solid {border} !important;
+        background: {'rgba(255,255,255,0.03)' if dark_mode else 'rgba(0,0,0,0.06)'} !important;
+        border: 1px solid {border} !important;
         border-radius: 10px !important;
-        padding: 6px 12px !important;
-        margin-bottom: 4px !important;
+        padding: 8px 12px !important;
+        margin-bottom: 5px !important;
     }}
     div[data-testid="stToggle"]:has([aria-checked="true"]) {{
         border-color: {accent} !important;
-        background: {'rgba(0,255,136,0.05)' if dark_mode else 'rgba(0,170,85,0.06)'} !important;
+        background: {'rgba(0,255,136,0.05)' if dark_mode else 'rgba(0,170,85,0.08)'} !important;
     }}
-    div[data-testid="stToggle"] label span {{ color: {text} !important; font-weight: 500 !important; }}
+    div[data-testid="stToggle"] div[role="checkbox"] {{
+        background-color: {'#444' if dark_mode else '#222'} !important;
+        border: 1px solid {'#666' if dark_mode else '#000'} !important;
+    }}
+    div[data-testid="stToggle"] div[role="checkbox"][aria-checked="true"] {{
+        background-color: {accent} !important;
+        border-color: {accent} !important;
+    }}
+    div[data-testid="stToggle"] div[role="checkbox"] > div {{
+        background-color: {'#eee' if dark_mode else '#ffffff'} !important;
+    }}
+    div[data-testid="stToggle"] label span {{
+        color: {text} !important;
+        font-weight: 600 !important;
+    }}
 
     /* === HEADER === */
     .main-header {{ text-align: center; padding: 24px 0 32px; }}
@@ -3435,4 +3449,4 @@ Quantum Oracle v0.7 · AI + Qiskit VQE · {mode_val.upper()} MODE · {quantum.ge
     <div style="text-align:center; color:{text2}; font-size:0.7rem; letter-spacing:1px; margin-top:32px; padding:16px;">
         QUANTUM ORACLE v0.7 · AI + QISKIT VQE · {mode_val.upper()} MODE · {quantum.get('total_qubits', 0)} qubits · {quantum.get('total_shots', 0):,} shots
     </div>
-    """, unsafe_allow_html=True) 
+    """, unsafe_allow_html=True)
