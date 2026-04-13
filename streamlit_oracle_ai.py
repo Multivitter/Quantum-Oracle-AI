@@ -1605,6 +1605,16 @@ with st.sidebar:
     if groq_key and groq_key.startswith("gsk_"):
         st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ Groq ({groq_key[:12]}...)</div>', unsafe_allow_html=True)
 
+    # === RESEARCH MODE ===
+    st.markdown("---")
+    web_search_enabled = st.checkbox("🌐 Web Search (real data)", value=False, help="Claude searches web for real market prices before analysis. Costs ~$0.03 extra.")
+    deep_research_enabled = st.checkbox("🔬 Deep Research", value=False, help="Claude + Gemini both do multi-step web research (5-10 searches each) before analysis. Takes 2-5 min, costs ~$0.30-0.50. Best for important decisions.")
+    if deep_research_enabled:
+        web_search_enabled = True  # Deep Research includes web search
+    
+    lang = st.selectbox("🌐 Language", ["English", "Русский", "Українська"])
+    lang_map = {"English": "English", "Русский": "Russian", "Українська": "Ukrainian"}
+
     # AI Engine toggles — pick any combination
     st.markdown("### 🤖 AI Engine")
     col_all, _ = st.columns([1, 2])
@@ -1706,17 +1716,6 @@ with st.sidebar:
     if high_precision:
         vqe_iterations = st.slider("VQE Iterations (HP)", 10, 30, 15, key="hp_iter")
         num_shots = st.select_slider("Shots (HP)", [2048, 4096, 8192], value=2048, key="hp_shots")
-
-    st.markdown("---")
-    web_search_enabled = st.checkbox("🌐 Web Search (real data)", value=False, help="Claude searches web for real market prices before analysis. Costs ~$0.03 extra.")
-    
-    deep_research_enabled = st.checkbox("🔬 Deep Research", value=False, help="Claude + Gemini both do multi-step web research (5-10 searches each) before analysis. Takes 2-5 min, costs ~$0.30-0.50. Best for important decisions.")
-    if deep_research_enabled:
-        web_search_enabled = True  # Deep Research includes web search
-
-    st.markdown("---")
-    lang = st.selectbox("🌐 Language", ["English", "Русский", "Українська"])
-    lang_map = {"English": "English", "Русский": "Russian", "Українська": "Ukrainian"}
 
     st.markdown("---")
     st.markdown(f"""
