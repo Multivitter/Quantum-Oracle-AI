@@ -2040,7 +2040,11 @@ if "scenarios" in st.session_state:
     best = next((s for s in scenarios if s["id"] == best_id), scenarios[0])
     best_q = next((r for r in quantum.get("results", []) if r["scenario_id"] == best_id), None)
 
-    mrr = exec_data.get("money_projection", {}).get("total_mrr_target", "—") if exec_data else "—"
+    mrr = exec_data.get("money_projection", {}).get("total_mrr_target", 0) if exec_data else 0
+    try:
+        mrr = int(float(mrr)) if mrr else 0
+    except (ValueError, TypeError):
+        mrr = 0
     breakeven = exec_data.get("money_projection", {}).get("breakeven_month", "—") if exec_data else "—"
 
     # === INPUT QUERY ===
