@@ -1598,6 +1598,65 @@ with col_side:
 
 # === OPTIONAL DATA ATTACHMENT ===
 csv_data_summary = None
+
+# === AI CHAT — discuss before analysis ===
+chat_enabled = st.toggle("💬 Chat with AI", value=False, help="Discuss your idea, get suggestions before running analysis")
+
+if chat_enabled:
+    # Initialize chat history
+    if "chat_history" not in st.session_state:
+        st.session_state["chat_history"] = []
+    
+    # Display chat history
+    for msg in st.session_state["chat_history"]:
+        if msg["role"] == "user":
+            st.markdown(f'<div style="background:{card_bg}; border:1px solid {border}; border-radius:12px; padding:10px 14px; margin:6px 0; margin-left:20%;"><span style="color:{text2}; font-size:0.7rem;">YOU</span><br><span style="color:{text}; font-size:0.85rem;">{msg["text"]}</span></div>', unsafe_allow_html=True)
+        else:
+            st.markdown(f'<div style="background:{accent}08; border:1px solid {accent}22; border-radius:12px; padding:10px 14px; margin:6px 0; margin-right:20%;"><span style="color:{accent}; font-size:0.7rem;">🤖 AI</span><br><span style="color:{text}; font-size:0.85rem;">{msg["text"]}</span></div>', unsafe_allow_html=True)
+    
+    col_chat, col_send = st.columns([5, 1])
+    with col_chat:
+        chat_input = st.text_input("Message", placeholder="Ask AI anything about your business idea...", label_visibility="collapsed", key="chat_input")
+    with col_send:
+        send_clicked = st.button("Send", use_container_width=True, key="chat_send")
+    
+    col_clear, col_use = st.columns(2)
+    with col_clear:
+        if st.button("🗑️ Clear chat", use_container_width=True, key="chat_clear"):
+            st.session_state["chat_history"] = []
+            st.rerun()
+    with col_use:
+        if st.button("📋 Use last AI reply as idea", use_container_width=True, key="chat_use"):
+            ai_msgs = [m for m in st.session_state["chat_history"] if m["role"] == "ai"]
+            if ai_msgs:
+                st.session_state["generated_idea"] = ai_msgs[-1]["text"]
+                st.rerun()
+    
+    if send_clicked and chat_input and chat_input.strip():
+        st.session_state["chat_history"].append({"role": "user", "text": chat_input.strip()})
+        
+        # Build context from chat history
+        history_text = "\n".join([f"{'User' if m['role']=='user' else 'AI'}: {m['text']}" for m in st.session_state["chat_history"][-6:]])
+        current_idea = idea.strip() if idea and idea.strip() else ""
+        
+        chat_prompt = f"""You are a business strategy advisor in Quantum Oracle AI platform.
+The user is brainstorming before running a full quantum analysis.
+{f'Their current business idea: {current_idea}' if current_idea else ''}
+
+Previous conversation:
+{history_text}
+
+Respond briefly (2-4 sentences). Be specific, actionable. Help them refine their idea.
+If they ask what to analyze — suggest a concrete business scenario.
+Respond in the same language as the user."""
+        
+        with st.spinner("🤖 Thinking..."):
+            reply = call_ai(chat_prompt, api_key, ai_engine=ai_engine, raw_text=True, model=claude_model, gemini_model=gemini_model)
+        
+        if reply and isinstance(reply, str):
+            st.session_state["chat_history"].append({"role": "ai", "text": reply})
+        st.rerun()
+
 attach_data = st.toggle("📎 Attach Data", value=False, help="Upload file, Google Sheets, or Live API")
 
 if attach_data:
@@ -1619,10 +1678,32 @@ if attach_data:
                     st.dataframe(df.head(10), use_container_width=True)
                     st.session_state["uploaded_df"] = df
                     stats = [f"File: {uploaded_file.name} ({len(df):,} rows × {len(df.columns)} cols)"]
-                    stats.append(f"Columns: {', '.join(df.columns.tolist()[:15])}")
+                    stats.append(f"Columns: {', '.join(df.columns.tolist()[:20])}")
+                    
+                    # Smart summary — actual data sample
+                    sample_rows = min(50, len(df))
+                    if len(df) <= 50:
+                        sample_df = df
+                    else:
+                        indices = list(range(0, min(20, len(df)))) + list(range(max(0, len(df) - 20), len(df)))
+                        indices = sorted(set(i for i in indices if 0 <= i < len(df)))
+                        sample_df = df.iloc[indices]
+                    
+                    stats.append(f"\n=== SAMPLE DATA ({len(sample_df)} rows) ===")
+                    stats.append(sample_df.to_string(max_cols=15, max_colwidth=20))
+                    
                     for col in df.select_dtypes(include=['number']).columns[:8]:
-                        stats.append(f"{col}: min={df[col].min():.2f}, max={df[col].max():.2f}, mean={df[col].mean():.2f}")
+                        valid = df[col].dropna()
+                        if len(valid) > 0:
+                            stats.append(f"{col}: min={valid.min():.2f}, max={valid.max():.2f}, mean={valid.mean():.2f}")
+                    
+                    for col in df.select_dtypes(include=['object']).columns[:5]:
+                        top = df[col].value_counts().head(5)
+                        stats.append(f"{col}: {', '.join(f'{k}({v})' for k, v in top.items())}")
+                    
                     csv_data_summary = "\n".join(stats)
+                    if len(csv_data_summary) > 8000:
+                        csv_data_summary = csv_data_summary[:8000] + "\n... (truncated)"
                 elif file_type == "pdf":
                     try:
                         import PyPDF2
@@ -1654,9 +1735,48 @@ if attach_data:
                     st.dataframe(df.head(10), use_container_width=True)
                     st.session_state["uploaded_df"] = df
                     stats = [f"Google Sheets ({len(df):,} rows × {len(df.columns)} cols)"]
-                    for col in df.select_dtypes(include=['number']).columns[:8]:
-                        stats.append(f"{col}: min={df[col].min():.2f}, max={df[col].max():.2f}")
+                    stats.append(f"Columns: {', '.join(df.columns.tolist()[:20])}")
+                    
+                    # Smart summary — show actual data, not just min/max
+                    # Sample rows (first, middle, last)
+                    sample_rows = min(50, len(df))
+                    if len(df) <= 50:
+                        sample_df = df
+                    else:
+                        indices = list(range(0, min(20, len(df))))  # first 20
+                        indices += list(range(len(df)//2 - 5, len(df)//2 + 5))  # middle 10
+                        indices += list(range(max(0, len(df) - 20), len(df)))  # last 20
+                        indices = sorted(set(i for i in indices if 0 <= i < len(df)))
+                        sample_df = df.iloc[indices]
+                    
+                    stats.append(f"\n=== SAMPLE DATA ({len(sample_df)} rows) ===")
+                    stats.append(sample_df.to_string(max_cols=15, max_colwidth=20))
+                    
+                    # Numeric columns stats
+                    num_cols = df.select_dtypes(include=['number']).columns[:10]
+                    if len(num_cols) > 0:
+                        stats.append(f"\n=== NUMERIC STATS ===")
+                        for col in num_cols:
+                            valid = df[col].dropna()
+                            if len(valid) > 0:
+                                stats.append(f"{col}: min={valid.min():.2f}, max={valid.max():.2f}, mean={valid.mean():.2f}, count={len(valid)}")
+                    
+                    # Category/text columns — unique values
+                    cat_cols = df.select_dtypes(include=['object']).columns[:8]
+                    if len(cat_cols) > 0:
+                        stats.append(f"\n=== CATEGORIES ===")
+                        for col in cat_cols:
+                            uniques = df[col].dropna().unique()
+                            if len(uniques) <= 20:
+                                stats.append(f"{col}: {', '.join(str(v) for v in uniques)}")
+                            else:
+                                top = df[col].value_counts().head(10)
+                                stats.append(f"{col} ({len(uniques)} unique): top = {', '.join(f'{k}({v})' for k, v in top.items())}")
+                    
+                    # Limit total size to ~8000 chars for prompt
                     csv_data_summary = "\n".join(stats)
+                    if len(csv_data_summary) > 8000:
+                        csv_data_summary = csv_data_summary[:8000] + "\n... (truncated)"
                     st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ Sheet loaded</div>', unsafe_allow_html=True)
             except Exception as e:
                 st.error(f"Error: {e}")
