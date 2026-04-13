@@ -1544,297 +1544,135 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # Main Input — two modes: Text or Data
-input_mode = st.radio("Input Mode", ["💡 Text Idea", "📊 Upload Data"], horizontal=True, label_visibility="collapsed")
+# === UNIFIED INPUT ===
+col_main, col_side = st.columns([3, 1])
 
-if input_mode == "💡 Text Idea":
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        idea = st.text_area("💡 Business Idea", placeholder="SaaS listing analyzer for Amazon sellers...", height=100,
-                            value=st.session_state.get("generated_idea", ""))
+with col_main:
+    idea = st.text_area("💡 Describe your business or question",
+        placeholder="Examples:\n• I have 2 Dry Van trucks in USA, which growth strategy to choose?\n• SaaS tool for Amazon sellers, budget $10K\n• Should I invest in crypto or real estate?\n• I uploaded my sales data — find growth opportunities",
+        height=100,
+        value=st.session_state.get("generated_idea", ""))
 
-        # Generate Ideas button
-        if st.button("🧠 GENERATE IDEAS", use_container_width=True, key="gen_ideas"):
-            if api_key:
-                with st.spinner("Generating ideas..."):
-                    gen_prompt = f"""Generate 1 innovative and profitable startup idea for 2026 that can be built by one person with $5-10K budget.
+    if st.button("🧠 GENERATE IDEAS", use_container_width=True, key="gen_ideas"):
+        if api_key or ai_engine in ["gemini", "groq"]:
+            with st.spinner("Generating ideas..."):
+                gen_prompt = f"""Generate 1 innovative and profitable startup idea for 2026 that can be built by one person with $5-10K budget.
 The idea should be at intersection of AI, quantum computing, crypto, or e-commerce.
 Respond in {lang_map[lang]}.
 Format: just the idea description in 2-3 sentences, no title, no numbering. Be specific and creative. Different every time."""
-                    result = call_claude(gen_prompt, api_key, raw_text=True, model=claude_model)
-                    if result and isinstance(result, str):
-                        st.session_state["generated_idea"] = result
-                    elif result:
-                        st.session_state["generated_idea"] = str(result)
-                    st.rerun()
-            else:
-                st.warning("Enter Claude API key in sidebar")
-
-    with col2:
-        show_params = st.toggle("⚙️ Parameters", value=False)
-        if show_params:
-            budget = st.number_input("💰 Budget ($)", value=10000, step=1000)
-            markets_list = st.multiselect("🌍 Target Markets", 
-                ["🇺🇸 US", "🇨🇦 CA", "🇪🇺 EU", "🇩🇪 DE", "🇬🇧 UK", "🇺🇦 UA", "🌍 Global"],
-                default=["🇺🇸 US", "🇪🇺 EU"])
-            markets = ", ".join([m.split(" ")[-1] for m in markets_list])
-            timeline = st.number_input("⏱️ Timeline (months)", value=6, min_value=1, max_value=36)
-            risk = st.selectbox("🎯 Risk Tolerance", ["low", "medium", "high"], index=1)
+                result = call_ai(gen_prompt, api_key, ai_engine=ai_engine, raw_text=True, model=claude_model, gemini_model=gemini_model)
+                if result and isinstance(result, str):
+                    st.session_state["generated_idea"] = result
+                elif result:
+                    st.session_state["generated_idea"] = str(result)
+                st.rerun()
         else:
-            budget = 10000
-            markets = "US, EU"
-            timeline = 6
-            risk = "medium"
+            st.warning("Enter API key in sidebar")
 
-    csv_data_summary = None
+with col_side:
+    show_params = st.toggle("⚙️ Parameters", value=False)
+    if show_params:
+        budget = st.number_input("💰 Budget ($)", value=10000, step=1000)
+        markets_list = st.multiselect("🌍 Markets",
+            ["🇺🇸 US", "🇨🇦 CA", "🇪🇺 EU", "🇩🇪 DE", "🇬🇧 UK", "🇺🇦 UA", "🌍 Global"],
+            default=["🇺🇸 US", "🇪🇺 EU"])
+        markets = ", ".join([m.split(" ")[-1] for m in markets_list])
+        timeline = st.number_input("⏱️ Timeline (mo)", value=6, min_value=1, max_value=36)
+        risk = st.selectbox("🎯 Risk", ["low", "medium", "high"], index=1)
+    else:
+        budget = 10000
+        markets = "US, EU"
+        timeline = 6
+        risk = "medium"
 
-else:
-    # CSV Upload Mode
-    st.markdown(f"""
-    <div style="background:{card_bg}; border:1px solid {border}; border-radius:12px; padding:16px 20px; margin-bottom:16px;">
-        <div style="color:{accent}; font-size:0.7rem; letter-spacing:2px; margin-bottom:8px;">📊 DATA-DRIVEN MODE</div>
-        <div style="color:{text2}; font-size:0.85rem; line-height:1.6;">
-            Upload any file with business data — CSV, Excel, PDF, TXT, JSON.
-            Or paste Google Sheets link (must be shared with "Anyone with link").
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+# === OPTIONAL DATA ATTACHMENT ===
+csv_data_summary = None
+attach_data = st.toggle("📎 Attach Data", value=False, help="Upload file, Google Sheets, or Live API")
 
+if attach_data:
     data_source = st.radio("Source", ["📎 Upload File", "🔗 Google Sheets", "🌐 Live API"], horizontal=True, label_visibility="collapsed", key="data_source")
 
-    uploaded_file = None
-    sheets_url = None
-    api_data = None
-
     if data_source == "📎 Upload File":
-        uploaded_file = st.file_uploader("Upload file", type=["csv", "xlsx", "xls", "pdf", "txt", "json"], label_visibility="collapsed")
-    elif data_source == "🔗 Google Sheets":
-        sheets_url = st.text_input("Google Sheets URL", placeholder="https://docs.google.com/spreadsheets/d/...", label_visibility="collapsed")
-    else:
-        # Live API
-        api_choices = st.multiselect("Select data feeds", [
-            "🪙 Crypto (SOL, BTC, ETH prices)",
-            "📈 S&P 500 / Market indices",
-            "💱 USD/EUR/UAH exchange rates",
-            "⛽ Gas / Energy prices"
-        ], default=["🪙 Crypto (SOL, BTC, ETH prices)"])
-
-        if st.button("🔄 FETCH LIVE DATA", use_container_width=True, key="fetch_api"):
-            api_data_parts = []
-            with st.spinner("Fetching live data..."):
-                import httpx as hx
-
-                # Crypto prices
-                if any("Crypto" in c for c in api_choices):
-                    try:
-                        r = hx.get("https://api.coingecko.com/api/v3/simple/price?ids=solana,bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true&include_market_cap=true", timeout=10)
-                        crypto = r.json()
-                        api_data_parts.append("=== CRYPTO PRICES (live) ===")
-                        for coin, data in crypto.items():
-                            api_data_parts.append(f"{coin.upper()}: ${data.get('usd', 0):,.2f} (24h: {data.get('usd_24h_change', 0):+.2f}%) MCap: ${data.get('usd_market_cap', 0):,.0f}")
-                    except Exception as e:
-                        api_data_parts.append(f"Crypto API error: {e}")
-
-                # Exchange rates
-                if any("exchange" in c.lower() for c in api_choices):
-                    try:
-                        r = hx.get("https://api.exchangerate-api.com/v4/latest/USD", timeout=10)
-                        rates = r.json().get("rates", {})
-                        api_data_parts.append("\n=== EXCHANGE RATES (live) ===")
-                        for cur in ["EUR", "GBP", "UAH", "PLN", "JPY", "CHF"]:
-                            if cur in rates:
-                                api_data_parts.append(f"USD/{cur}: {rates[cur]:.4f}")
-                    except Exception as e:
-                        api_data_parts.append(f"Exchange rate API error: {e}")
-
-                # Market indices (fear & greed as proxy)
-                if any("S&P" in c for c in api_choices):
-                    try:
-                        r = hx.get("https://api.alternative.me/fng/?limit=1", timeout=10)
-                        fng = r.json().get("data", [{}])[0]
-                        api_data_parts.append("\n=== MARKET SENTIMENT (live) ===")
-                        api_data_parts.append(f"Fear & Greed Index: {fng.get('value', '?')} ({fng.get('value_classification', '?')})")
-                    except Exception as e:
-                        api_data_parts.append(f"Market API error: {e}")
-
-                # Energy
-                if any("Energy" in c for c in api_choices):
-                    api_data_parts.append("\n=== ENERGY CONTEXT ===")
-                    api_data_parts.append("Note: Real-time energy prices require paid API. Using context: EU energy crisis, Ukraine grid instability, solar adoption growing 30% YoY")
-
-            if api_data_parts:
-                api_data = "\n".join(api_data_parts)
-                st.session_state["api_data"] = api_data
-
-        # Show cached data
-        if "api_data" in st.session_state:
-            api_data = st.session_state["api_data"]
-
-    col_d1, col_d2 = st.columns([2, 1])
-
-    csv_data_summary = None
-
-    with col_d1:
-        # Live API data display
-        if api_data:
-            st.code(api_data, language=None)
-            csv_data_summary = api_data
-            st.markdown(f"""
-            <div style="background:{card_bg}; border:1px solid {accent}22; border-radius:8px; padding:12px; margin-top:8px;">
-                <div style="color:{accent}; font-size:0.7rem; letter-spacing:1px;">✅ LIVE DATA LOADED</div>
-                <div style="color:{text}; font-size:0.85rem; margin-top:4px;">Real-time market data fetched</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-        # Google Sheets loading
-        elif sheets_url and sheets_url.strip():
-            try:
-                import re
-                # Extract sheet ID from URL
-                match = re.search(r'/d/([a-zA-Z0-9_-]+)', sheets_url)
-                if match:
-                    sheet_id = match.group(1)
-                    # Try to get specific gid if present
-                    gid_match = re.search(r'gid=(\d+)', sheets_url)
-                    gid = gid_match.group(1) if gid_match else "0"
-
-                    csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
-
-                    with st.spinner("Loading Google Sheet..."):
-                        df = pd.read_csv(csv_url)
-
-                    st.dataframe(df.head(10), use_container_width=True)
-                    st.session_state["uploaded_df"] = df
-
-                    stats = []
-                    stats.append(f"Source: Google Sheets ({len(df):,} rows × {len(df.columns)} columns)")
-                    stats.append(f"Columns: {', '.join(df.columns.tolist())}")
-                    for col in df.select_dtypes(include=['number']).columns[:10]:
-                        stats.append(f"{col}: min={df[col].min():.2f}, max={df[col].max():.2f}, mean={df[col].mean():.2f}, sum={df[col].sum():.2f}")
-                    for col in df.select_dtypes(include=['object']).columns[:5]:
-                        top = df[col].value_counts().head(3)
-                        stats.append(f"{col}: top values = {', '.join([f'{k}({v})' for k, v in top.items()])}")
-                    csv_data_summary = "\n".join(stats)
-
-                    st.markdown(f"""
-                    <div style="background:{card_bg}; border:1px solid {accent}22; border-radius:8px; padding:12px; margin-top:8px;">
-                        <div style="color:{accent}; font-size:0.7rem; letter-spacing:1px;">✅ GOOGLE SHEET LOADED</div>
-                        <div style="color:{text}; font-size:0.85rem; margin-top:4px;">{len(df):,} rows × {len(df.columns)} columns</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.error("Invalid Google Sheets URL. Expected format: https://docs.google.com/spreadsheets/d/...")
-            except Exception as e:
-                st.error(f"Error loading sheet: {e}. Make sure the sheet is shared with 'Anyone with link'.")
-
-        elif uploaded_file:
+        uploaded_file = st.file_uploader("Upload", type=["csv", "xlsx", "xls", "pdf", "txt", "json"], label_visibility="collapsed")
+        if uploaded_file:
             file_type = uploaded_file.name.split(".")[-1].lower()
             try:
-                if file_type == "csv":
-                    df = pd.read_csv(uploaded_file)
+                if file_type in ("csv", "xlsx", "xls"):
+                    df = pd.read_csv(uploaded_file) if file_type == "csv" else pd.read_excel(uploaded_file)
                     st.dataframe(df.head(10), use_container_width=True)
                     st.session_state["uploaded_df"] = df
-
-                    stats = []
-                    stats.append(f"File: {uploaded_file.name} ({len(df):,} rows × {len(df.columns)} columns)")
-                    stats.append(f"Columns: {', '.join(df.columns.tolist())}")
-                    for col in df.select_dtypes(include=['number']).columns[:10]:
-                        stats.append(f"{col}: min={df[col].min():.2f}, max={df[col].max():.2f}, mean={df[col].mean():.2f}, sum={df[col].sum():.2f}")
-                    for col in df.select_dtypes(include=['object']).columns[:5]:
-                        top = df[col].value_counts().head(3)
-                        stats.append(f"{col}: top values = {', '.join([f'{k}({v})' for k, v in top.items()])}")
+                    stats = [f"File: {uploaded_file.name} ({len(df):,} rows × {len(df.columns)} cols)"]
+                    stats.append(f"Columns: {', '.join(df.columns.tolist()[:15])}")
+                    for col in df.select_dtypes(include=['number']).columns[:8]:
+                        stats.append(f"{col}: min={df[col].min():.2f}, max={df[col].max():.2f}, mean={df[col].mean():.2f}")
                     csv_data_summary = "\n".join(stats)
-
-                elif file_type in ("xlsx", "xls"):
-                    df = pd.read_excel(uploaded_file)
-                    st.dataframe(df.head(10), use_container_width=True)
-                    st.session_state["uploaded_df"] = df
-
-                    stats = []
-                    stats.append(f"File: {uploaded_file.name} ({len(df):,} rows × {len(df.columns)} columns)")
-                    stats.append(f"Columns: {', '.join(df.columns.tolist())}")
-                    for col in df.select_dtypes(include=['number']).columns[:10]:
-                        stats.append(f"{col}: min={df[col].min():.2f}, max={df[col].max():.2f}, mean={df[col].mean():.2f}, sum={df[col].sum():.2f}")
-                    for col in df.select_dtypes(include=['object']).columns[:5]:
-                        top = df[col].value_counts().head(3)
-                        stats.append(f"{col}: top values = {', '.join([f'{k}({v})' for k, v in top.items()])}")
-                    csv_data_summary = "\n".join(stats)
-
                 elif file_type == "pdf":
                     try:
                         import PyPDF2
                         reader = PyPDF2.PdfReader(uploaded_file)
-                        pdf_text = ""
-                        for page in reader.pages[:10]:
-                            pdf_text += page.extract_text() + "\n"
-                        st.text_area("PDF Content (first 10 pages)", pdf_text[:3000], height=200, disabled=True)
-                        csv_data_summary = f"File: {uploaded_file.name} ({len(reader.pages)} pages)\n\nContent:\n{pdf_text[:4000]}"
-                    except ImportError:
-                        # Fallback without PyPDF2
-                        raw = uploaded_file.read().decode('utf-8', errors='ignore')
-                        clean = ''.join(c for c in raw if c.isprintable() or c in '\n\r\t')
-                        st.text_area("Raw content", clean[:3000], height=200, disabled=True)
-                        csv_data_summary = f"File: {uploaded_file.name}\n\nContent:\n{clean[:4000]}"
-
-                elif file_type == "txt":
-                    text_content = uploaded_file.read().decode('utf-8')
-                    st.text_area("File content", text_content[:3000], height=200, disabled=True)
-                    csv_data_summary = f"File: {uploaded_file.name}\n\nContent:\n{text_content[:4000]}"
-
-                elif file_type == "json":
-                    json_content = json.loads(uploaded_file.read().decode('utf-8'))
-                    st.json(json_content)
-                    csv_data_summary = f"File: {uploaded_file.name}\n\nJSON data:\n{json.dumps(json_content, indent=2)[:4000]}"
-
+                        pdf_text = "\n".join([p.extract_text() for p in reader.pages[:10]])
+                        csv_data_summary = f"PDF: {uploaded_file.name} ({len(reader.pages)} pages)\n{pdf_text[:4000]}"
+                    except:
+                        csv_data_summary = f"File: {uploaded_file.name}"
+                elif file_type in ("txt", "json"):
+                    content = uploaded_file.read().decode('utf-8')
+                    csv_data_summary = f"File: {uploaded_file.name}\n{content[:4000]}"
                 if csv_data_summary:
-                    st.markdown(f"""
-                    <div style="background:{card_bg}; border:1px solid {accent}22; border-radius:8px; padding:12px; margin-top:8px;">
-                        <div style="color:{accent}; font-size:0.7rem; letter-spacing:1px;">✅ FILE LOADED</div>
-                        <div style="color:{text}; font-size:0.85rem; margin-top:4px;">{uploaded_file.name}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
+                    st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ {uploaded_file.name} loaded</div>', unsafe_allow_html=True)
             except Exception as e:
-                st.error(f"Error reading file: {e}")
-                csv_data_summary = None
-        else:
-            if not sheets_url and not api_data:
-                st.markdown(f"""
-                <div style="color:{text2}; font-size:0.85rem; padding:20px; text-align:center;">
-                    {'Drag & drop file here' if data_source == '📎 Upload File' else 'Paste Google Sheets URL above'}<br>
-                    <span style="font-size:0.75rem;">{'CSV · Excel · PDF · TXT · JSON' if data_source == '📎 Upload File' else 'Sheet must be shared: Anyone with link → Viewer'}</span>
-                </div>
-                """, unsafe_allow_html=True)
+                st.error(f"Error: {e}")
 
-    with col_d2:
-        show_params_csv = st.toggle("⚙️ Parameters", value=False, key="params_csv")
-        if show_params_csv:
-            budget = st.number_input("💰 Budget ($)", value=10000, step=1000, key="budget_csv")
-            markets_list = st.multiselect("🌍 Target Markets",
-                ["🇺🇸 US", "🇨🇦 CA", "🇪🇺 EU", "🇩🇪 DE", "🇬🇧 UK", "🇺🇦 UA", "🌍 Global"],
-                default=["🇺🇸 US", "🇪🇺 EU"], key="markets_csv")
-            markets = ", ".join([m.split(" ")[-1] for m in markets_list])
-            timeline = st.number_input("⏱️ Timeline (months)", value=6, min_value=1, max_value=36, key="timeline_csv")
-            risk = st.selectbox("🎯 Risk Tolerance", ["low", "medium", "high"], index=1, key="risk_csv")
-        else:
-            budget = 10000
-            markets = "US, EU"
-            timeline = 6
-            risk = "medium"
+    elif data_source == "🔗 Google Sheets":
+        sheets_url = st.text_input("URL", placeholder="https://docs.google.com/spreadsheets/d/...", label_visibility="collapsed")
+        if sheets_url and sheets_url.strip():
+            try:
+                import re
+                match = re.search(r'/d/([a-zA-Z0-9_-]+)', sheets_url)
+                if match:
+                    sheet_id = match.group(1)
+                    gid_match = re.search(r'gid=(\d+)', sheets_url)
+                    gid = gid_match.group(1) if gid_match else "0"
+                    with st.spinner("Loading..."):
+                        df = pd.read_csv(f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}")
+                    st.dataframe(df.head(10), use_container_width=True)
+                    st.session_state["uploaded_df"] = df
+                    stats = [f"Google Sheets ({len(df):,} rows × {len(df.columns)} cols)"]
+                    for col in df.select_dtypes(include=['number']).columns[:8]:
+                        stats.append(f"{col}: min={df[col].min():.2f}, max={df[col].max():.2f}")
+                    csv_data_summary = "\n".join(stats)
+                    st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ Sheet loaded</div>', unsafe_allow_html=True)
+            except Exception as e:
+                st.error(f"Error: {e}")
 
-    # Context about the data
-    data_context = st.text_area(
-        "💬 What to analyze?",
-        placeholder="e.g. This is my PPC data for merino.tech. Analyze ACOS trends and suggest optimization strategies...",
-        height=70,
-        key="data_context"
-    )
+    elif data_source == "🌐 Live API":
+        api_choices = st.multiselect("Feeds", ["🪙 Crypto", "💱 Exchange rates", "📈 Market sentiment"], default=["🪙 Crypto"])
+        if st.button("🔄 FETCH", use_container_width=True, key="fetch_api"):
+            parts = []
+            with st.spinner("Fetching..."):
+                import httpx as hx
+                if any("Crypto" in c for c in api_choices):
+                    try:
+                        r = hx.get("https://api.coingecko.com/api/v3/simple/price?ids=solana,bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true", timeout=10)
+                        for coin, data in r.json().items():
+                            parts.append(f"{coin.upper()}: ${data.get('usd',0):,.2f} ({data.get('usd_24h_change',0):+.1f}%)")
+                    except: pass
+                if any("Exchange" in c for c in api_choices):
+                    try:
+                        r = hx.get("https://api.exchangerate-api.com/v4/latest/USD", timeout=10)
+                        for cur in ["EUR", "GBP", "UAH"]:
+                            parts.append(f"USD/{cur}: {r.json()['rates'].get(cur, 0):.4f}")
+                    except: pass
+            if parts:
+                csv_data_summary = "\n".join(parts)
+                st.session_state["api_data"] = csv_data_summary
+                st.code(csv_data_summary, language=None)
+        if "api_data" in st.session_state and not csv_data_summary:
+            csv_data_summary = st.session_state["api_data"]
 
-    # Auto-generate idea from data
-    if csv_data_summary:
-        context_text = data_context.strip() if data_context and data_context.strip() else "Analyze this data and suggest optimization strategies."
-        idea = f"[DATA-DRIVEN ANALYSIS]\n\nUser request: {context_text}\n\nBusiness data summary:\n{csv_data_summary}"
-    else:
-        idea = ""
+# Build final idea with data
+if csv_data_summary:
+    base_idea = idea.strip() if idea and idea.strip() else "Analyze this data and suggest optimization strategies."
+    idea = f"[DATA-DRIVEN ANALYSIS]\n\nUser request: {base_idea}\n\nData:\n{csv_data_summary}"
 
 # RUN
 if st.button("⚡ RUN QUANTUM SIMULATION", use_container_width=True):
