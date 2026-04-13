@@ -2321,23 +2321,6 @@ if "scenarios" in st.session_state:
     </div>
     """, unsafe_allow_html=True)
 
-    # === EXECUTIVE BRIEF (if already generated — show at top) ===
-    if "exec_brief" in st.session_state:
-        brief_text = st.session_state['exec_brief']
-        if not isinstance(brief_text, str):
-            brief_text = str(brief_text)
-        with st.expander("📋 EXECUTIVE BRIEF — FINAL VERDICT", expanded=True):
-            st.markdown(f"""
-            <div style="background:{card_bg}; border:2px solid {accent}; border-radius:16px; padding:24px; position:relative; overflow:hidden;">
-                <div style="position:absolute; top:0; right:0; background:{accent}; color:{bg}; padding:4px 14px; font-size:0.6rem; font-weight:800; letter-spacing:2px; border-radius:0 0 0 12px;">
-                    FINAL VERDICT v0.8
-                </div>
-                <div style="color:{text}; font-size:0.88rem; line-height:1.7;">
-                    {brief_text.replace(chr(10), '<br>')}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
     # === WEB SEARCH / DEEP RESEARCH CONTEXT ===
     market_ctx = st.session_state.get("market_context")
     deep_res = st.session_state.get("deep_research")
@@ -2345,6 +2328,196 @@ if "scenarios" in st.session_state:
         dr_label = "🔬 Deep Research Results" if deep_res else "🌐 Real Market Data (from web search)"
         with st.expander(dr_label, expanded=False):
             st.markdown(market_ctx[:5000] + "..." if len(market_ctx) > 5000 else market_ctx)
+
+    # === 📋 EXECUTIVE BRIEF (generate + display) ===
+    if api_key:
+        if st.button("📋 GENERATE EXECUTIVE BRIEF", use_container_width=True, key="exec_summary"):
+            with st.spinner("Writing executive brief..."):
+                q_results = quantum.get("results", [])
+                scenarios_summary = "\n".join([
+                    f"- {s['name']}: AI={s['success_probability']}%, Quantum={next((r['quantum_score'] for r in q_results if r['scenario_id'] == s['id']), '?')}%, ROI=+{s['expected_roi']}%, Risk={s['risk_score']}/100, Verdict={s['recommendation']}"
+                    for s in scenarios
+                ])
+                money = ""
+                if exec_data and exec_data.get("money_projection"):
+                    mp = exec_data["money_projection"]
+                    money = f"Revenue: M1=${mp.get('month_1', {}).get('revenue', 0):,}, M3=${mp.get('month_3', {}).get('revenue', 0):,}, M6=${mp.get('month_6', {}).get('revenue', 0):,}. Target MRR: ${mp.get('total_mrr_target', 0):,}. Breakeven: Month {mp.get('breakeven_month', '?')}."
+                conv = quantum.get("convergence", [])
+                vqe_info = f"VQE: {quantum.get('iterations', 0)} iterations, {quantum.get('total_shots', 0):,} shots, cost range [{min(conv):.4f} to {max(conv):.4f}]" if conv else ""
+
+                summary_prompt = f"""You are a McKinsey senior partner writing a 1-page executive brief for the CEO.
+Language: {lang_map[lang]}
+
+INPUT: {idea[:1000]}
+Budget: ${budget:,} | Markets: {markets} | Timeline: {timeline}mo | Risk: {risk} | Mode: {mode_val}
+
+SCENARIOS:
+{scenarios_summary}
+
+QUANTUM: {vqe_info}
+Best: {best['name']} (quantum: {best_q['quantum_score'] if best_q else '?'}%)
+
+DISAGREEMENT: {exec_data.get('quantum_reasoning', ['N/A'])[0] if exec_data and exec_data.get('quantum_reasoning') else 'N/A'}
+
+MONEY: {money}
+FIRST ACTION: {exec_data.get('first_action', 'N/A') if exec_data else 'N/A'}
+RESEARCH: {st.session_state.get('market_context', 'N/A')[:2000]}
+
+Write a board meeting brief:
+
+# EXECUTIVE BRIEF — [Company/Topic]
+**Confidential | Budget: ${budget:,} | Horizon: {timeline} months**
+
+## 🎯 THE BOTTOM LINE
+One BOLD sentence. The single most profitable move. No 'maybe'.
+
+## 📊 VITAL METRICS
+4 numbers: **metric: value** — one-line explanation each.
+
+## ⚡ THREE MOVES
+1. **[Action]** — **[deadline]** — [measurable result with $]
+2. **[Action]** — **[deadline]** — [measurable result]
+3. **[Action]** — **[deadline]** — [measurable result]
+
+## ⚠️ CRITICAL STOP-LOSS
+Exact trigger to abort. Specific number, not vague risk.
+
+## 🧠 WHY QUANTUM DISAGREES WITH AI
+One paragraph: what quantum saw, specific shifts, capital allocation impact.
+
+## 💰 NET OUTCOME
+One sentence: expected result if executed on schedule.
+
+ULTRA specific. Exact numbers. Professional, cold, data-driven. CEO clarity."""
+
+                brief = call_claude(summary_prompt, api_key, raw_text=True, model=claude_model)
+                st.session_state["exec_brief"] = brief
+
+        if "exec_brief" in st.session_state:
+            brief_text = st.session_state['exec_brief']
+            if not isinstance(brief_text, str):
+                brief_text = str(brief_text)
+            
+            # === Parse brief into sections and render as styled cards ===
+            import re
+            sections = re.split(r'##\s*', brief_text)
+            
+            # Extract title (before first ##)
+            title_block = sections[0].strip() if sections else ""
+            title_lines = [l.strip() for l in title_block.split("\n") if l.strip() and not l.strip().startswith("---")]
+            brief_title = title_lines[0].replace("#", "").strip() if title_lines else "Executive Brief"
+            brief_subtitle = title_lines[1].replace("**", "").strip() if len(title_lines) > 1 else ""
+            
+            # Start the FINAL VERDICT card
+            st.markdown(f"""
+            <div style="background:{card_bg}; border:2px solid {accent}; border-radius:16px; padding:28px 24px; margin:12px 0; position:relative; overflow:hidden;">
+                <div style="position:absolute; top:0; right:0; background:{accent}; color:{bg}; padding:5px 16px; font-size:0.6rem; font-weight:800; letter-spacing:2px; border-radius:0 0 0 12px;">FINAL VERDICT v0.8</div>
+                <div style="font-size:1.05rem; font-weight:700; color:{text}; margin-bottom:4px;">{brief_title}</div>
+                <div style="font-size:0.75rem; color:{text2}; margin-bottom:20px;">{brief_subtitle}</div>
+            """, unsafe_allow_html=True)
+            
+            for section in sections[1:]:
+                lines = section.strip().split("\n")
+                header = lines[0].strip() if lines else ""
+                body_lines = [l.strip() for l in lines[1:] if l.strip() and l.strip() != "---"]
+                body = "<br>".join(body_lines)
+                # Clean markdown bold
+                body = body.replace("**", "")
+                
+                header_lower = header.lower()
+                
+                if "bottom line" in header_lower:
+                    # THE BOTTOM LINE — accent label + bold text
+                    st.markdown(f"""
+                    <div style="margin-bottom:20px;">
+                        <div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">⚡ THE BOTTOM LINE</div>
+                        <div style="font-size:0.95rem; font-weight:600; color:{text}; line-height:1.6;">{body}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                elif "vital" in header_lower or "metric" in header_lower or "ключев" in header_lower or "цифр" in header_lower:
+                    # VITAL METRICS — grid of metric cards
+                    metric_items = [l for l in body_lines if l and not l.startswith("---")]
+                    st.markdown(f"""<div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:10px;">📊 VITAL METRICS</div>""", unsafe_allow_html=True)
+                    
+                    cols_html = ""
+                    for item in metric_items[:4]:
+                        # Try to extract label:value pattern
+                        clean = item.lstrip("- •*0123456789.)")
+                        clean = clean.replace("**", "").strip()
+                        cols_html += f"""
+                        <div style="background:{bg}; border:1px solid {border}; border-radius:10px; padding:12px 14px;">
+                            <div style="font-size:0.85rem; color:{text}; line-height:1.5;">{clean}</div>
+                        </div>"""
+                    
+                    st.markdown(f"""
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px;">
+                        {cols_html}
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                elif "three" in header_lower or "move" in header_lower or "шаг" in header_lower:
+                    # THREE MOVES — numbered steps with colored borders
+                    st.markdown(f"""<div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:10px;">⚡ THREE MOVES</div>""", unsafe_allow_html=True)
+                    
+                    colors = [accent, "#378ADD", "#888780"]
+                    step_items = [l for l in body_lines if l and not l.startswith("---")]
+                    for i, step in enumerate(step_items[:3]):
+                        clean = step.lstrip("- •*0123456789.)").replace("**", "").strip()
+                        c = colors[i] if i < len(colors) else colors[-1]
+                        st.markdown(f"""
+                        <div style="background:{bg}; border-left:3px solid {c}; padding:12px 14px; margin-bottom:8px;">
+                            <div style="font-size:0.85rem; color:{text}; line-height:1.5;">{clean}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    st.markdown(f"""<div style="margin-bottom:20px;"></div>""", unsafe_allow_html=True)
+                
+                elif "stop" in header_lower or "risk" in header_lower or "риск" in header_lower:
+                    # CRITICAL STOP-LOSS — danger card
+                    st.markdown(f"""
+                    <div style="margin-bottom:20px;">
+                        <div style="color:#e84050; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">⚠️ CRITICAL STOP-LOSS</div>
+                        <div style="background:rgba(232,64,80,0.08); border:1px solid rgba(232,64,80,0.2); border-radius:10px; padding:12px 14px;">
+                            <div style="font-size:0.85rem; color:{text}; line-height:1.6;">{body}</div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                elif "quantum" in header_lower or "квант" in header_lower:
+                    # WHY QUANTUM DISAGREES — purple card
+                    st.markdown(f"""
+                    <div style="margin-bottom:20px;">
+                        <div style="color:#7F77DD; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">🧠 WHY QUANTUM DISAGREES WITH AI</div>
+                        <div style="background:rgba(127,119,221,0.06); border:1px solid rgba(127,119,221,0.15); border-radius:10px; padding:12px 14px;">
+                            <div style="font-size:0.85rem; color:{text}; line-height:1.7;">{body}</div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                elif "outcome" in header_lower or "итог" in header_lower:
+                    # NET OUTCOME — accent summary
+                    st.markdown(f"""
+                    <div style="border-top:1px solid {border}; padding-top:16px;">
+                        <div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">💰 NET OUTCOME</div>
+                        <div style="font-size:0.92rem; font-weight:600; color:{text}; line-height:1.6;">{body}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                else:
+                    # Generic section
+                    clean_header = header.replace("**", "").strip()
+                    st.markdown(f"""
+                    <div style="margin-bottom:16px;">
+                        <div style="color:{text2}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">{clean_header}</div>
+                        <div style="font-size:0.85rem; color:{text}; line-height:1.6;">{body}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # Close FINAL VERDICT card
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            st.download_button("⬇️ Download Executive Brief", data=brief_text.encode("utf-8"), file_name="quantum_oracle_executive_brief.txt", mime="text/plain", key="dl_brief")
 
     # === EXECUTIVE DECISION ===
     mrr_display = f"+${mrr:,} MRR" if isinstance(mrr, (int, float)) else ""
@@ -3136,110 +3309,6 @@ if "scenarios" in st.session_state:
                 </div>
             </div>
             """, unsafe_allow_html=True)
-
-    # === 📝 EXECUTIVE SUMMARY ===
-    st.markdown("---")
-    st.markdown("### 📝 EXECUTIVE SUMMARY")
-
-    if api_key:
-        if st.button("🎯 GENERATE EXECUTIVE BRIEF", use_container_width=True, key="exec_summary"):
-            with st.spinner("Writing executive brief..."):
-                # Gather all data for summary
-                q_results = quantum.get("results", [])
-                scenarios_summary = "\n".join([
-                    f"- {s['name']}: AI={s['success_probability']}%, Quantum={next((r['quantum_score'] for r in q_results if r['scenario_id'] == s['id']), '?')}%, ROI=+{s['expected_roi']}%, Risk={s['risk_score']}/100, Verdict={s['recommendation']}"
-                    for s in scenarios
-                ])
-
-                money = ""
-                if exec_data and exec_data.get("money_projection"):
-                    mp = exec_data["money_projection"]
-                    money = f"Revenue: M1=${mp.get('month_1', {}).get('revenue', 0):,}, M3=${mp.get('month_3', {}).get('revenue', 0):,}, M6=${mp.get('month_6', {}).get('revenue', 0):,}. Target MRR: ${mp.get('total_mrr_target', 0):,}. Breakeven: Month {mp.get('breakeven_month', '?')}."
-
-                conv = quantum.get("convergence", [])
-                vqe_info = f"VQE: {quantum.get('iterations', 0)} iterations, {quantum.get('total_shots', 0):,} shots, cost range [{min(conv):.4f} to {max(conv):.4f}]" if conv else ""
-
-                summary_prompt = f"""You are a McKinsey senior partner writing a 1-page executive brief for the CEO.
-Language: {lang_map[lang]}
-
-INPUT DATA:
-{idea[:1000]}
-
-Budget: ${budget:,} | Markets: {markets} | Timeline: {timeline} months | Risk: {risk} | Mode: {mode_val}
-
-SCENARIOS (AI + Quantum analysis):
-{scenarios_summary}
-
-QUANTUM ENGINE: {vqe_info}
-Best strategy chosen by quantum: {best['name']} (quantum score: {best_q['quantum_score'] if best_q else '?'}%)
-
-BIGGEST AI vs QUANTUM DISAGREEMENT:
-{exec_data.get('quantum_reasoning', ['N/A'])[0] if exec_data and exec_data.get('quantum_reasoning') else 'N/A'}
-
-MONEY PROJECTION: {money}
-
-FIRST ACTION: {exec_data.get('first_action', 'N/A') if exec_data else 'N/A'}
-
-MARKET RESEARCH: {st.session_state.get('market_context', 'N/A')[:2000]}
-
-Structure the response as a high-stakes board meeting brief:
-
-# EXECUTIVE BRIEF — [Company/Topic Name]
-**Confidential | Budget: ${budget:,} | Horizon: {timeline} months**
-
----
-
-## 🎯 THE BOTTOM LINE
-One sentence in BOLD. What is the single most profitable move? No 'maybe' or 'could' — state it as a decision.
-
-## 📊 VITAL METRICS
-4 specific numbers from the analysis. Format: **metric: value** — one-line explanation each.
-
-## ⚡ THREE MOVES (priority order)
-1. **[Action]** — **[deadline]** — [expected measurable result with $numbers]
-2. **[Action]** — **[deadline]** — [expected measurable result]
-3. **[Action]** — **[deadline]** — [expected measurable result]
-
-## ⚠️ CRITICAL STOP-LOSS
-The exact price, rating, or metric where we abort. Not vague risk — specific trigger.
-
-## 🧠 WHY QUANTUM DISAGREES WITH AI
-One paragraph: what the quantum engine saw that AI missed, and what it means for capital allocation. Reference specific scenario shifts.
-
-## 💰 NET OUTCOME
-One sentence: expected revenue/profit if plan is executed on schedule.
-
----
-
-Be ULTRA specific. Use exact numbers from data. Professional, cold, data-driven language. CEO-level clarity. No filler words."""
-
-                brief = call_claude(summary_prompt, api_key, raw_text=True, model=claude_model)
-                st.session_state["exec_brief"] = brief
-
-        if "exec_brief" in st.session_state:
-            brief_text = st.session_state['exec_brief']
-            if not isinstance(brief_text, str):
-                brief_text = str(brief_text)
-            
-            # McKinsey-style FINAL VERDICT card
-            st.markdown(f"""
-            <div style="background:{card_bg}; border:2px solid {accent}; border-radius:16px; padding:30px; margin:16px 0; position:relative; overflow:hidden;">
-                <div style="position:absolute; top:0; right:0; background:{accent}; color:{bg}; padding:5px 16px; font-size:0.65rem; font-weight:800; letter-spacing:2px; border-radius:0 0 0 12px;">
-                    FINAL VERDICT v0.8
-                </div>
-                <div style="color:{text}; font-size:0.92rem; line-height:1.8;">
-                    {brief_text.replace(chr(10), '<br>')}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.download_button(
-                "⬇️ Download Executive Brief",
-                data=brief_text.encode("utf-8"),
-                file_name="quantum_oracle_executive_brief.txt",
-                mime="text/plain",
-                key="dl_brief"
-            )
 
     # === ONE-CLICK EXECUTION ===
     st.markdown("---")
