@@ -2,7 +2,7 @@ streamlit
 qiskit
 qiskit-aer
 qiskit-ibm-runtime
-google-genai
+google-generativeai
 groq
 numpy
 pandas
