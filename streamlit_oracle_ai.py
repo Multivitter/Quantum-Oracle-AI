@@ -152,6 +152,17 @@ st.markdown(f"""
         box-shadow: 0 0 20px {accent}25 !important;
     }}
 
+    /* === TOGGLES — visible in both themes === */
+    div[data-testid="stToggle"] label span[data-testid="stMarkdownContainer"] {{ color: {text} !important; }}
+    div[data-testid="stToggle"] div[role="checkbox"] {{
+        background-color: {'#333' if dark_mode else '#bbb'} !important;
+        border: 1px solid {'#555' if dark_mode else '#999'} !important;
+    }}
+    div[data-testid="stToggle"] div[role="checkbox"][aria-checked="true"] {{
+        background-color: {accent} !important;
+        border-color: {accent} !important;
+    }}
+
     /* === HEADER === */
     .main-header {{ text-align: center; padding: 24px 0 32px; }}
     .main-header .version {{
