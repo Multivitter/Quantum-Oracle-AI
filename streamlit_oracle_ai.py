@@ -1368,6 +1368,91 @@ Format as a short bullet list of VERIFIED facts with sources. Max 10 bullets. On
         return f"(Web search unavailable: {e})"
 
 
+def deep_research_claude(idea, api_key, model="claude-sonnet-4-6"):
+    """Claude Deep Research — multi-step web search with synthesis."""
+    if not api_key:
+        return ""
+    try:
+        client = anthropic.Anthropic(api_key=str(api_key).strip())
+        msg = client.messages.create(
+            model=model,
+            max_tokens=8000,
+            tools=[{"type": "web_search_20250305", "name": "web_search"}],
+            messages=[{"role": "user", "content": f"""You are a business research analyst. Do DEEP multi-step research on this business question.
+
+BUSINESS CONTEXT:
+{idea[:2000]}
+
+RESEARCH INSTRUCTIONS:
+1. Search for the SPECIFIC industry/niche this business is in. Find market size, growth rate, key trends.
+2. Search for DIRECT COMPETITORS. Find their prices, positioning, strengths, weaknesses.
+3. Search for the BEST SALES CHANNELS for this type of product in 2025-2026. Find conversion rates, fees, ROI benchmarks.
+4. Search for REGULATORY requirements and compliance issues relevant to this business.
+5. Search for PRICING BENCHMARKS — what do top sellers charge? What's the price elasticity?
+6. Search for TECHNOLOGY and TOOLS that could give competitive advantage (AI, automation, etc.)
+7. Search for CASE STUDIES of similar businesses that scaled successfully. What worked? What failed?
+
+Do at least 8-10 separate web searches to cover all angles. Read full articles, not just snippets.
+
+OUTPUT FORMAT:
+Write a comprehensive research brief (1500-2500 words) organized by topic. Include:
+- [VERIFIED] tag for data with sources
+- [INSIGHT] tag for strategic conclusions
+- Specific numbers, dates, company names
+- Contradictions between sources (if any)
+- Risks and opportunities others might miss
+
+Be thorough. This research will feed into a quantum-optimized business strategy engine."""}]
+        )
+        texts = []
+        for block in msg.content:
+            if hasattr(block, 'text'):
+                texts.append(block.text)
+        return "[Source: Claude Deep Research]\n" + "\n".join(texts) if texts else ""
+    except Exception as e:
+        st.warning(f"Claude Deep Research error: {e}")
+        return ""
+
+
+def deep_research_gemini(idea, gemini_model="gemini-2.5-flash"):
+    """Gemini Deep Research — Google Search grounding with multi-step analysis."""
+    try:
+        import google.generativeai as genai
+        model = genai.GenerativeModel(gemini_model)
+        response = model.generate_content(
+            f"""You are a market research analyst with access to Google Search. Do comprehensive research on this business:
+
+BUSINESS CONTEXT:
+{idea[:2000]}
+
+RESEARCH TASKS:
+1. Find current MARKET SIZE and GROWTH RATE for this specific industry/niche
+2. Find TOP COMPETITORS — their revenue, pricing, market share, positioning
+3. Find CONSUMER TRENDS — what buyers want, how preferences are changing
+4. Find CHANNEL BENCHMARKS — Amazon conversion rates, TikTok Shop growth, D2C benchmarks
+5. Find PRICING DATA — average prices, willingness to pay, price sensitivity
+6. Find SUPPLY CHAIN facts — raw material costs, lead times, sourcing options
+7. Find REGULATORY landscape — EU compliance, certifications, upcoming regulations
+8. Find TECHNOLOGY trends — AI tools, automation, new platforms
+
+OUTPUT FORMAT:
+Comprehensive research report (1500-2500 words) with:
+- Specific numbers and sources for every claim
+- Competitive landscape analysis
+- Channel-by-channel opportunity assessment
+- Risk factors and market threats
+- Hidden opportunities that surface-level research misses
+
+Be thorough and fact-based. This research feeds into a quantum business strategy engine.""",
+            tools=[{"google_search": {}}]
+        )
+        if response and response.text:
+            return f"[Source: Gemini Deep Research + Google Search]\n{response.text}"
+    except Exception as e:
+        st.warning(f"Gemini Deep Research error: {e}")
+    return ""
+
+
 def call_claude(prompt, api_key, raw_text=False, model="claude-sonnet-4-6"):
     """Claude API with caching — same prompt+model = cached result."""
     try:
@@ -1417,20 +1502,25 @@ def call_ai(prompt, api_key, ai_engine="claude", raw_text=False, model="claude-s
         results = {}
         primary = None
         if st.session_state.get("use_claude") and api_key:
+            st.toast("🧠 Claude analyzing...")
             r = call_claude(prompt, api_key, raw_text, model)
             if r:
                 results["claude"] = r
                 primary = primary or r
         if st.session_state.get("use_gemini"):
+            st.toast("🤖 Gemini analyzing...")
             r = call_gemini(prompt, raw_text, gemini_model)
             if r:
                 results["gemini"] = r
                 primary = primary or r
         if st.session_state.get("use_groq"):
+            st.toast("⚡ Groq analyzing...")
             r = call_groq(prompt, raw_text)
             if r:
                 results["groq"] = r
                 primary = primary or r
+        if results:
+            st.toast(f"✅ {len(results)} AI engines completed: {', '.join(results.keys())}")
         st.session_state["multi_ai_results"] = results
         return primary
     else:
@@ -1474,7 +1564,7 @@ def call_groq(prompt, raw_text=False):
 # Header
 st.markdown("""
 <div class="main-header">
-    <div class="version">QUANTUM ORACLE v0.7</div>
+    <div class="version">QUANTUM ORACLE v0.8</div>
     <h1>Business Strategy Engine</h1>
     <div class="sub">AI + Quantum War Room · Executive Decisions in 15 Seconds</div>
 </div>
@@ -1619,6 +1709,10 @@ with st.sidebar:
 
     st.markdown("---")
     web_search_enabled = st.checkbox("🌐 Web Search (real data)", value=False, help="Claude searches web for real market prices before analysis. Costs ~$0.03 extra.")
+    
+    deep_research_enabled = st.checkbox("🔬 Deep Research", value=False, help="Claude + Gemini both do multi-step web research (5-10 searches each) before analysis. Takes 2-5 min, costs ~$0.30-0.50. Best for important decisions.")
+    if deep_research_enabled:
+        web_search_enabled = True  # Deep Research includes web search
 
     st.markdown("---")
     lang = st.selectbox("🌐 Language", ["English", "Русский", "Українська"])
@@ -1630,7 +1724,7 @@ with st.sidebar:
         ⚛️ {'IBM Quantum' if quantum_backend == 'ibm_quantum' else 'Google Cirq' if quantum_backend == 'google_cirq' else 'Xanadu PennyLane' if quantum_backend == 'pennylane' else '⚡ MULTI ENGINE' if 'MULTI' in quantum_backend else 'Qiskit AerSimulator'}<br>
         🧬 VQE {vqe_iterations} iterations × {num_shots} shots<br>
         = {vqe_iterations * num_shots:,} measurements<br><br>
-        QUANTUM ORACLE v0.7
+        QUANTUM ORACLE v0.8
     </div>
     """, unsafe_allow_html=True)
 
@@ -1963,9 +2057,54 @@ if st.button("⚡ RUN QUANTUM SIMULATION", use_container_width=True):
     elif not api_key and not ANTHROPIC_AVAILABLE:
         st.warning("Enter Claude API key in sidebar")
     else:
-        # STEP 0: Web Search for real market data (optional)
+        # STEP 0: Web Search / Deep Research for real market data
         market_context = ""
-        if web_search_enabled:
+        deep_context = ""
+        
+        if deep_research_enabled:
+            # === DEEP RESEARCH MODE: Claude + Gemini multi-step research ===
+            dr_cols = st.columns(2)
+            claude_dr = ""
+            gemini_dr = ""
+            
+            with dr_cols[0]:
+                with st.spinner("🔬 Claude Deep Research (5-10 searches)..."):
+                    claude_dr = deep_research_claude(idea, api_key, model=claude_model)
+                    if claude_dr:
+                        st.toast("✅ Claude Deep Research complete")
+            
+            with dr_cols[1]:
+                with st.spinner("🔬 Gemini Deep Research (Google Search)..."):
+                    gemini_dr = deep_research_gemini(idea, gemini_model=gemini_model)
+                    if gemini_dr:
+                        st.toast("✅ Gemini Deep Research complete")
+            
+            # Combine both research reports
+            parts = []
+            if claude_dr:
+                parts.append(claude_dr)
+            if gemini_dr:
+                parts.append(gemini_dr)
+            
+            if parts:
+                deep_context = "\n\n---\n\n".join(parts)
+                market_context = deep_context
+                st.session_state["market_context"] = market_context
+                st.session_state["deep_research"] = {
+                    "claude": claude_dr,
+                    "gemini": gemini_dr
+                }
+                
+                # Show research summary
+                with st.expander(f"🔬 DEEP RESEARCH RESULTS ({len(claude_dr) + len(gemini_dr):,} chars from 2 AI engines)", expanded=False):
+                    if claude_dr:
+                        st.markdown("#### 🧠 Claude Deep Research")
+                        st.markdown(claude_dr[:3000] + "..." if len(claude_dr) > 3000 else claude_dr)
+                    if gemini_dr:
+                        st.markdown("#### 🤖 Gemini Deep Research")
+                        st.markdown(gemini_dr[:3000] + "..." if len(gemini_dr) > 3000 else gemini_dr)
+        
+        elif web_search_enabled:
             with st.spinner("🌐 Searching web for real market data..."):
                 market_context = web_search_context(idea, api_key, model=claude_model)
                 if market_context:
@@ -1976,13 +2115,16 @@ if st.button("⚡ RUN QUANTUM SIMULATION", use_container_width=True):
             # Inject real market data into prompt if available
             idea_with_context = idea
             if market_context and len(market_context) > 20:
+                # Truncate deep research to fit in prompt (max 8000 chars for context)
+                ctx = market_context[:8000] if len(market_context) > 8000 else market_context
+                dr_label = "DEEP RESEARCH" if deep_research_enabled else "web search"
                 idea_with_context = f"""{idea}
 
-=== VERIFIED MARKET DATA (from web search) ===
-{market_context}
+=== VERIFIED MARKET DATA (from {dr_label} — Claude + Gemini) ===
+{ctx}
 === END MARKET DATA ===
 
-IMPORTANT: Use the real market data above for all calculations. Do not invent numbers where real data is available."""
+IMPORTANT: Use the real market data above for all calculations. Do not invent numbers where real data is available. Label claims as [FACT] if from research, [ESTIMATE] if calculated, [HYPOTHESIS] if assumed."""
 
             prompt = SCENARIOS_PROMPT.format(
                 idea=idea_with_context, budget=budget, markets=markets,
@@ -2180,11 +2322,30 @@ if "scenarios" in st.session_state:
     </div>
     """, unsafe_allow_html=True)
 
-    # === WEB SEARCH CONTEXT ===
+    # === EXECUTIVE BRIEF (if already generated — show at top) ===
+    if "exec_brief" in st.session_state:
+        brief_text = st.session_state['exec_brief']
+        if not isinstance(brief_text, str):
+            brief_text = str(brief_text)
+        with st.expander("📋 EXECUTIVE BRIEF — FINAL VERDICT", expanded=True):
+            st.markdown(f"""
+            <div style="background:{card_bg}; border:2px solid {accent}; border-radius:16px; padding:24px; position:relative; overflow:hidden;">
+                <div style="position:absolute; top:0; right:0; background:{accent}; color:{bg}; padding:4px 14px; font-size:0.6rem; font-weight:800; letter-spacing:2px; border-radius:0 0 0 12px;">
+                    FINAL VERDICT v0.8
+                </div>
+                <div style="color:{text}; font-size:0.88rem; line-height:1.7;">
+                    {brief_text.replace(chr(10), '<br>')}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # === WEB SEARCH / DEEP RESEARCH CONTEXT ===
     market_ctx = st.session_state.get("market_context")
+    deep_res = st.session_state.get("deep_research")
     if market_ctx and len(market_ctx) > 20:
-        with st.expander("🌐 Real Market Data (from web search)", expanded=False):
-            st.markdown(market_ctx)
+        dr_label = "🔬 Deep Research Results" if deep_res else "🌐 Real Market Data (from web search)"
+        with st.expander(dr_label, expanded=False):
+            st.markdown(market_ctx[:5000] + "..." if len(market_ctx) > 5000 else market_ctx)
 
     # === EXECUTIVE DECISION ===
     mrr_display = f"+${mrr:,} MRR" if isinstance(mrr, (int, float)) else ""
@@ -3020,48 +3181,62 @@ MONEY PROJECTION: {money}
 
 FIRST ACTION: {exec_data.get('first_action', 'N/A') if exec_data else 'N/A'}
 
-Write a structured executive brief:
+MARKET RESEARCH: {st.session_state.get('market_context', 'N/A')[:2000]}
 
-## 🎯 РЕШЕНИЕ
-One sentence: what to do.
+Structure the response as a high-stakes board meeting brief:
 
-## 📊 КЛЮЧЕВЫЕ ЦИФРЫ
-3-4 bullet points with specific numbers from the analysis.
+# EXECUTIVE BRIEF — [Company/Topic Name]
+**Confidential | Budget: ${budget:,} | Horizon: {timeline} months**
 
-## ⚡ ТРИ ШАГА (приоритет)
-1. [Конкретное действие] — [срок] — [ожидаемый результат]
-2. ...
-3. ...
+---
 
-## ⚠️ ГЛАВНЫЙ РИСК
-One sentence: the biggest risk and how to mitigate it.
+## 🎯 THE BOTTOM LINE
+One sentence in BOLD. What is the single most profitable move? No 'maybe' or 'could' — state it as a decision.
 
-## 🧠 ПОЧЕМУ КВАНТ НЕ СОГЛАСЕН С AI
-One paragraph explaining the key disagreement and what it means for the business.
+## 📊 VITAL METRICS
+4 specific numbers from the analysis. Format: **metric: value** — one-line explanation each.
 
-## 💰 ИТОГ
-One sentence: expected outcome if plan is followed.
+## ⚡ THREE MOVES (priority order)
+1. **[Action]** — **[deadline]** — [expected measurable result with $numbers]
+2. **[Action]** — **[deadline]** — [expected measurable result]
+3. **[Action]** — **[deadline]** — [expected measurable result]
 
-Be ULTRA specific. Use exact numbers from the data. No vague advice. CEO-level clarity."""
+## ⚠️ CRITICAL STOP-LOSS
+The exact price, rating, or metric where we abort. Not vague risk — specific trigger.
+
+## 🧠 WHY QUANTUM DISAGREES WITH AI
+One paragraph: what the quantum engine saw that AI missed, and what it means for capital allocation. Reference specific scenario shifts.
+
+## 💰 NET OUTCOME
+One sentence: expected revenue/profit if plan is executed on schedule.
+
+---
+
+Be ULTRA specific. Use exact numbers from data. Professional, cold, data-driven language. CEO-level clarity. No filler words."""
 
                 brief = call_claude(summary_prompt, api_key, raw_text=True, model=claude_model)
                 st.session_state["exec_brief"] = brief
 
         if "exec_brief" in st.session_state:
+            brief_text = st.session_state['exec_brief']
+            if not isinstance(brief_text, str):
+                brief_text = str(brief_text)
+            
+            # McKinsey-style FINAL VERDICT card
             st.markdown(f"""
-            <div style="background:{card_bg}; border:1px solid {accent}33; border-radius:14px; padding:28px; margin:16px 0;">
-                <div style="color:{text}; font-size:0.95rem; line-height:1.8;">
-                    {st.session_state['exec_brief'].replace(chr(10), '<br>')}
+            <div style="background:{card_bg}; border:2px solid {accent}; border-radius:16px; padding:30px; margin:16px 0; position:relative; overflow:hidden;">
+                <div style="position:absolute; top:0; right:0; background:{accent}; color:{bg}; padding:5px 16px; font-size:0.65rem; font-weight:800; letter-spacing:2px; border-radius:0 0 0 12px;">
+                    FINAL VERDICT v0.8
+                </div>
+                <div style="color:{text}; font-size:0.92rem; line-height:1.8;">
+                    {brief_text.replace(chr(10), '<br>')}
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
-            brief_content = st.session_state['exec_brief']
-            if not isinstance(brief_content, str):
-                brief_content = str(brief_content)
             st.download_button(
                 "⬇️ Download Executive Brief",
-                data=brief_content.encode("utf-8"),
+                data=brief_text.encode("utf-8"),
                 file_name="quantum_oracle_executive_brief.txt",
                 mime="text/plain",
                 key="dl_brief"
@@ -3296,8 +3471,12 @@ Use specific numbers, not ranges."""
     biggest_diff = max(ai_vs_quantum, key=lambda x: abs(x["shift"]))
 
     export_data = {
-        "oracle_version": "0.7",
+        "oracle_version": "0.8",
         "model": claude_model,
+        "ai_engines_active": [e for e in ["claude", "gemini", "groq"] if st.session_state.get(f"use_{e}")],
+        "gemini_model": gemini_model if st.session_state.get("use_gemini") else None,
+        "groq_model": st.session_state.get("groq_model") if st.session_state.get("use_groq") else None,
+        "multi_ai_results": st.session_state.get("multi_ai_results"),
         "mode": mode_val,
         "input": {
             "idea": idea,
@@ -3343,7 +3522,8 @@ Use specific numbers, not ranges."""
         "money_projection": exec_data.get("money_projection") if exec_data else None,
         "quantum_reasoning": exec_data.get("quantum_reasoning") if exec_data else None,
         "executive_summary": st.session_state.get("exec_brief"),
-        "market_context": st.session_state.get("market_context")
+        "market_context": st.session_state.get("market_context"),
+        "deep_research": st.session_state.get("deep_research")
     }
 
     export_json = json.dumps(export_data, ensure_ascii=False, indent=2)
@@ -3571,6 +3751,6 @@ Quantum Oracle v0.7 · AI + Qiskit VQE · {mode_val.upper()} MODE · {quantum.ge
     # Footer
     st.markdown(f"""
     <div style="text-align:center; color:{text2}; font-size:0.7rem; letter-spacing:1px; margin-top:32px; padding:16px;">
-        QUANTUM ORACLE v0.7 · AI + QISKIT VQE · {mode_val.upper()} MODE · {quantum.get('total_qubits', 0)} qubits · {quantum.get('total_shots', 0):,} shots
+        QUANTUM ORACLE v0.8 · AI + QISKIT VQE · {mode_val.upper()} MODE · {quantum.get('total_qubits', 0)} qubits · {quantum.get('total_shots', 0):,} shots
     </div>
-    """, unsafe_allow_html=True) 
+    """, unsafe_allow_html=True)
