@@ -154,14 +154,20 @@ st.markdown(f"""
 
     /* === TOGGLES — visible in both themes === */
     div[data-testid="stToggle"] label span[data-testid="stMarkdownContainer"] {{ color: {text} !important; font-weight: 500 !important; }}
-    div[data-testid="stToggle"] div[role="checkbox"] {{
-        background-color: {'#444' if dark_mode else '#aaa'} !important;
-        border: 2px solid {'#666' if dark_mode else '#888'} !important;
-        border-radius: 12px !important;
+    div[data-testid="stToggle"] label > div:first-child {{
+        background-color: {'#555' if dark_mode else '#999'} !important;
+        border: 2px solid {'#777' if dark_mode else '#777'} !important;
     }}
-    div[data-testid="stToggle"] div[role="checkbox"][aria-checked="true"] {{
+    div[data-testid="stToggle"] label > div:first-child[aria-checked="true"] {{
         background-color: {accent} !important;
         border-color: {accent} !important;
+    }}
+    /* Streamlit toggle track */
+    .st-emotion-cache-1ol9r1e, .st-emotion-cache-16idsys, [data-testid="stToggle"] [role="checkbox"] {{
+        background-color: {'#555' if dark_mode else '#999'} !important;
+    }}
+    .st-emotion-cache-1ol9r1e[aria-checked="true"], .st-emotion-cache-16idsys[aria-checked="true"], [data-testid="stToggle"] [role="checkbox"][aria-checked="true"] {{
+        background-color: {accent} !important;
     }}
 
     /* === HEADER === */
@@ -3428,4 +3434,4 @@ Quantum Oracle v0.7 · AI + Qiskit VQE · {mode_val.upper()} MODE · {quantum.ge
     <div style="text-align:center; color:{text2}; font-size:0.7rem; letter-spacing:1px; margin-top:32px; padding:16px;">
         QUANTUM ORACLE v0.7 · AI + QISKIT VQE · {mode_val.upper()} MODE · {quantum.get('total_qubits', 0)} qubits · {quantum.get('total_shots', 0):,} shots
     </div>
-    """, unsafe_allow_html=True) 
+    """, unsafe_allow_html=True)
