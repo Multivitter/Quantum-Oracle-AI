@@ -152,22 +152,20 @@ st.markdown(f"""
         box-shadow: 0 0 20px {accent}25 !important;
     }}
 
-    /* === TOGGLES — visible in both themes === */
-    div[data-testid="stToggle"] label span[data-testid="stMarkdownContainer"] {{ color: {text} !important; font-weight: 500 !important; }}
-    div[data-testid="stToggle"] label > div:first-child {{
-        background-color: {'#555' if dark_mode else '#999'} !important;
-        border: 2px solid {'#777' if dark_mode else '#777'} !important;
+    /* === TOGGLES — force visibility === */
+    div[data-testid="stToggle"] label span[data-testid="stMarkdownContainer"] {{ color: {text} !important; font-weight: 600 !important; }}
+    div[data-testid="stToggle"] label {{
+        background: {'transparent' if dark_mode else 'rgba(0,0,0,0.04)'} !important;
+        border-radius: 8px !important;
+        padding: 4px 8px !important;
     }}
-    div[data-testid="stToggle"] label > div:first-child[aria-checked="true"] {{
-        background-color: {accent} !important;
-        border-color: {accent} !important;
+    div[data-testid="stToggle"] * {{
+        --toggle-off-bg: {'#555' if dark_mode else '#888'};
     }}
-    /* Streamlit toggle track */
-    .st-emotion-cache-1ol9r1e, .st-emotion-cache-16idsys, [data-testid="stToggle"] [role="checkbox"] {{
-        background-color: {'#555' if dark_mode else '#999'} !important;
-    }}
-    .st-emotion-cache-1ol9r1e[aria-checked="true"], .st-emotion-cache-16idsys[aria-checked="true"], [data-testid="stToggle"] [role="checkbox"][aria-checked="true"] {{
-        background-color: {accent} !important;
+    /* Force toggle track color via filter */
+    div[data-testid="stToggle"] label > div:first-child:not([aria-checked="true"]) {{
+        opacity: {'0.6' if dark_mode else '0.8'} !important;
+        filter: {'none' if dark_mode else 'contrast(0.7) brightness(0.7)'} !important;
     }}
 
     /* === HEADER === */
