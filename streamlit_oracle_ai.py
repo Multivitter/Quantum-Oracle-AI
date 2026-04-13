@@ -1590,9 +1590,15 @@ csv_data_summary = None
 attach_data = st.toggle("📎 Attach Data", value=False, help="Upload file, Google Sheets, or Live API")
 
 if attach_data:
-    data_source = st.radio("Source", ["📎 Upload File", "🔗 Google Sheets", "🌐 Live API"], horizontal=True, label_visibility="collapsed", key="data_source")
+    col_s1, col_s2, col_s3 = st.columns(3)
+    with col_s1:
+        use_file = st.toggle("📎 File", value=False, key="use_file")
+    with col_s2:
+        use_sheets = st.toggle("🔗 Sheets", value=False, key="use_sheets")
+    with col_s3:
+        use_api = st.toggle("🌐 Live API", value=False, key="use_api")
 
-    if data_source == "📎 Upload File":
+    if use_file:
         uploaded_file = st.file_uploader("Upload", type=["csv", "xlsx", "xls", "pdf", "txt", "json"], label_visibility="collapsed")
         if uploaded_file:
             file_type = uploaded_file.name.split(".")[-1].lower()
@@ -1622,7 +1628,7 @@ if attach_data:
             except Exception as e:
                 st.error(f"Error: {e}")
 
-    elif data_source == "🔗 Google Sheets":
+    if use_sheets:
         sheets_url = st.text_input("URL", placeholder="https://docs.google.com/spreadsheets/d/...", label_visibility="collapsed")
         if sheets_url and sheets_url.strip():
             try:
@@ -1644,7 +1650,7 @@ if attach_data:
             except Exception as e:
                 st.error(f"Error: {e}")
 
-    elif data_source == "🌐 Live API":
+    if use_api:
         api_choices = st.multiselect("Feeds", ["🪙 Crypto", "💱 Exchange rates", "📈 Market sentiment"], default=["🪙 Crypto"])
         if st.button("🔄 FETCH", use_container_width=True, key="fetch_api"):
             parts = []
@@ -1670,9 +1676,18 @@ if attach_data:
             csv_data_summary = st.session_state["api_data"]
 
 # Build final idea with data
+all_data_parts = []
 if csv_data_summary:
+    all_data_parts.append(csv_data_summary)
+if "api_data" in st.session_state and st.session_state["api_data"] and attach_data and use_api:
+    if st.session_state["api_data"] not in (csv_data_summary or ""):
+        all_data_parts.append(st.session_state["api_data"])
+
+combined_data = "\n\n".join(all_data_parts) if all_data_parts else None
+
+if combined_data:
     base_idea = idea.strip() if idea and idea.strip() else "Analyze this data and suggest optimization strategies."
-    idea = f"[DATA-DRIVEN ANALYSIS]\n\nUser request: {base_idea}\n\nData:\n{csv_data_summary}"
+    idea = f"[DATA-DRIVEN ANALYSIS]\n\nUser request: {base_idea}\n\nData:\n{combined_data}"
 
 # RUN
 if st.button("⚡ RUN QUANTUM SIMULATION", use_container_width=True):
