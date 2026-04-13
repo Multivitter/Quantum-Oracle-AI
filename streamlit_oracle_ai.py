@@ -2554,10 +2554,10 @@ if "scenarios" in st.session_state:
         fig_bcg.add_vline(x=55, line_dash="dot", line_color=border, opacity=0.5)
 
         # Quadrant labels
-        fig_bcg.add_annotation(x=80, y=60, text="⭐ Stars", showarrow=False, font=dict(size=11, color="#00ff8855"))
-        fig_bcg.add_annotation(x=80, y=10, text="🐄 Cash Cows", showarrow=False, font=dict(size=11, color="#4488cc55"))
-        fig_bcg.add_annotation(x=30, y=60, text="❓ Question Marks", showarrow=False, font=dict(size=11, color="#ccaa0055"))
-        fig_bcg.add_annotation(x=30, y=10, text="🐕 Dogs", showarrow=False, font=dict(size=11, color="#cc444455"))
+        fig_bcg.add_annotation(x=80, y=60, text="⭐ Stars", showarrow=False, font=dict(size=11, color="rgba(0,255,136,0.3)"))
+        fig_bcg.add_annotation(x=80, y=10, text="🐄 Cash Cows", showarrow=False, font=dict(size=11, color="rgba(68,136,204,0.3)"))
+        fig_bcg.add_annotation(x=30, y=60, text="❓ Question Marks", showarrow=False, font=dict(size=11, color="rgba(204,170,0,0.3)"))
+        fig_bcg.add_annotation(x=30, y=10, text="🐕 Dogs", showarrow=False, font=dict(size=11, color="rgba(204,68,68,0.3)"))
 
         fig_bcg.update_layout(
             height=400, showlegend=False,
