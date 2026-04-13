@@ -21,6 +21,8 @@ import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 from typing import Optional
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="google")
 
 # Qiskit
 from qiskit import QuantumCircuit
@@ -1206,6 +1208,37 @@ Output format — JSON array:
 Mode: aggressive=high ROI/fast, balanced=equal, conservative=low risk/stable.
 Respond ONLY with valid JSON array."""
 
+
+def clean_dataframe(df):
+    """Preprocess DataFrame: clean Not Found, convert types."""
+    # Replace "Not Found" with NaN
+    df = df.replace("Not Found", np.nan)
+    df = df.replace("not found", np.nan)
+    df = df.replace("N/A", np.nan)
+    df = df.replace("n/a", np.nan)
+    df = df.replace("-", np.nan)
+    
+    # Try to convert numeric columns (skip first few metadata columns)
+    for col in df.columns[4:]:  # Skip metadata columns
+        try:
+            # Remove currency symbols and convert
+            cleaned = df[col].astype(str).str.replace('$', '', regex=False)
+            cleaned = cleaned.str.replace('€', '', regex=False)
+            cleaned = cleaned.str.replace('£', '', regex=False)
+            cleaned = cleaned.str.replace(',', '.', regex=False)  # EU decimal format
+            cleaned = cleaned.str.strip()
+            df[col] = pd.to_numeric(cleaned, errors='coerce')
+        except Exception:
+            pass
+    
+    # Count Not Found stats
+    not_found_count = df.isna().sum().sum()
+    total_cells = df.shape[0] * df.shape[1]
+    not_found_pct = round(not_found_count / total_cells * 100, 1) if total_cells > 0 else 0
+    
+    return df, not_found_pct
+
+
 EXECUTION_PROMPT = """You are a senior startup growth strategist. ALL text in {lang}.
 
 Business: {idea}
@@ -1214,12 +1247,16 @@ Budget: ${budget} | Timeline: {timeline}mo | Mode: {mode}
 Quantum ranking:
 {ranking}
 
+CRITICAL: You MUST return ALL fields below. Never skip execution_plan or money_projection.
+Even for data-driven analysis, create an actionable 8-week plan and revenue projection.
+If analyzing existing business data, project revenue growth from current baseline.
+
 Return JSON:
 {{
   "first_action": "ONE specific thing to do tomorrow in ≤60 minutes",
   "execution_plan": [
     {{"week": 1, "title": "short", "tasks": ["task1", "task2", "task3"]}}
-  ] (8 weeks),
+  ] (MUST have exactly 8 weeks — never skip this),
   "money_projection": {{
     "month_1": {{"users": N, "revenue": N}},
     "month_2": {{"users": N, "revenue": N}},
@@ -1227,11 +1264,11 @@ Return JSON:
     "month_6": {{"users": N, "revenue": N}},
     "total_mrr_target": N,
     "breakeven_month": N
-  }},
+  }} (MUST include — for existing business use current revenue as baseline and project growth),
   "quantum_reasoning": ["reason1", "reason2", "reason3"]
 }}
 
-Be specific. No vague advice. ONLY valid JSON."""
+Be specific. No vague advice. ONLY valid JSON. ALL fields required."""
 
 
 def _call_claude_inner(prompt, api_key, raw_text=False, model="claude-sonnet-4-6"):
@@ -1771,6 +1808,7 @@ if attach_data:
             try:
                 if file_type in ("csv", "xlsx", "xls"):
                     df = pd.read_csv(uploaded_file) if file_type == "csv" else pd.read_excel(uploaded_file)
+                    df, nf_pct = clean_dataframe(df)
                     st.dataframe(df.head(10), use_container_width=True)
                     st.session_state["uploaded_df"] = df
                     stats = [f"File: {uploaded_file.name} ({len(df):,} rows × {len(df.columns)} cols)"]
@@ -1812,7 +1850,7 @@ if attach_data:
                     content = uploaded_file.read().decode('utf-8')
                     csv_data_summary = f"File: {uploaded_file.name}\n{content[:4000]}"
                 if csv_data_summary:
-                    st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ {uploaded_file.name} — {len(df):,} rows × {len(df.columns)} columns</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ {uploaded_file.name} — {len(df):,} rows × {len(df.columns)} columns{f" | {nf_pct}% empty" if nf_pct > 5 else ""}</div>', unsafe_allow_html=True)
             except Exception as e:
                 st.error(f"Error: {e}")
 
@@ -1828,6 +1866,7 @@ if attach_data:
                     gid = gid_match.group(1) if gid_match else "0"
                     with st.spinner("Loading..."):
                         df = pd.read_csv(f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}")
+                    df, nf_pct = clean_dataframe(df)
                     st.dataframe(df.head(10), use_container_width=True)
                     st.session_state["uploaded_df"] = df
                     stats = [f"Google Sheets ({len(df):,} rows × {len(df.columns)} cols)"]
@@ -1873,7 +1912,7 @@ if attach_data:
                     csv_data_summary = "\n".join(stats)
                     if len(csv_data_summary) > 8000:
                         csv_data_summary = csv_data_summary[:8000] + "\n... (truncated)"
-                    st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ Sheet loaded — {len(df):,} rows × {len(df.columns)} columns</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ Sheet loaded — {len(df):,} rows × {len(df.columns)} columns{f" | {nf_pct}% empty" if nf_pct > 5 else ""}</div>', unsafe_allow_html=True)
             except Exception as e:
                 st.error(f"Error: {e}")
 
