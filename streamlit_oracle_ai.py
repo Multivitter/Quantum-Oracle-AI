@@ -153,10 +153,11 @@ st.markdown(f"""
     }}
 
     /* === TOGGLES — visible in both themes === */
-    div[data-testid="stToggle"] label span[data-testid="stMarkdownContainer"] {{ color: {text} !important; }}
+    div[data-testid="stToggle"] label span[data-testid="stMarkdownContainer"] {{ color: {text} !important; font-weight: 500 !important; }}
     div[data-testid="stToggle"] div[role="checkbox"] {{
-        background-color: {'#333' if dark_mode else '#bbb'} !important;
-        border: 1px solid {'#555' if dark_mode else '#999'} !important;
+        background-color: {'#444' if dark_mode else '#aaa'} !important;
+        border: 2px solid {'#666' if dark_mode else '#888'} !important;
+        border-radius: 12px !important;
     }}
     div[data-testid="stToggle"] div[role="checkbox"][aria-checked="true"] {{
         background-color: {accent} !important;
@@ -1474,13 +1475,17 @@ with st.sidebar:
 
     # AI Engine toggles — pick any combination
     st.markdown("### 🤖 AI Engine")
+    col_all, _ = st.columns([1, 2])
+    with col_all:
+        use_all = st.toggle("⚡ All", value=False, key="use_all_ai")
+    
     col_ai1, col_ai2, col_ai3 = st.columns(3)
     with col_ai1:
-        use_claude = st.toggle("Claude", value=True if secret_key else False, key="use_claude")
+        use_claude = st.toggle("Claude", value=use_all or (True if secret_key else False), key="use_claude")
     with col_ai2:
-        use_gemini = st.toggle("Gemini", value=True if gemini_key else False, key="use_gemini")
+        use_gemini = st.toggle("Gemini", value=use_all or (True if gemini_key else False), key="use_gemini")
     with col_ai3:
-        use_groq = st.toggle("Groq", value=False, key="use_groq")
+        use_groq = st.toggle("Groq", value=use_all, key="use_groq")
     
     # Build ai_engine from toggles
     active_engines = []
