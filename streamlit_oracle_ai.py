@@ -2400,150 +2400,127 @@ ULTRA specific. Exact numbers. Professional, cold, data-driven. CEO clarity."""
             if not isinstance(brief_text, str):
                 brief_text = str(brief_text)
             
-            # === Parse brief into sections and render as styled cards ===
+            # === Parse brief into sections and render as ONE HTML block ===
             import re
             sections = re.split(r'##\s*', brief_text)
             
-            # Extract title (before first ##)
+            # Extract title
             title_block = sections[0].strip() if sections else ""
             title_lines = [l.strip() for l in title_block.split("\n") if l.strip() and not l.strip().startswith("---")]
-            brief_title = title_lines[0].replace("#", "").strip() if title_lines else "Executive Brief"
+            brief_title = title_lines[0].replace("#", "").replace("**", "").strip() if title_lines else "Executive Brief"
             brief_subtitle = title_lines[1].replace("**", "").strip() if len(title_lines) > 1 else ""
             
-            # Start the FINAL VERDICT card
-            st.markdown(f"""
+            # Build complete HTML
+            html = f"""
             <div style="background:{card_bg}; border:2px solid {accent}; border-radius:16px; padding:28px 24px; margin:12px 0; position:relative; overflow:hidden;">
                 <div style="position:absolute; top:0; right:0; background:{accent}; color:{bg}; padding:5px 16px; font-size:0.6rem; font-weight:800; letter-spacing:2px; border-radius:0 0 0 12px;">FINAL VERDICT v0.8</div>
                 <div style="font-size:1.05rem; font-weight:700; color:{text}; margin-bottom:4px;">{brief_title}</div>
                 <div style="font-size:0.75rem; color:{text2}; margin-bottom:20px;">{brief_subtitle}</div>
-            """, unsafe_allow_html=True)
+            """
             
             for section in sections[1:]:
                 lines = section.strip().split("\n")
                 header = lines[0].strip() if lines else ""
                 body_lines = [l.strip() for l in lines[1:] if l.strip() and l.strip() != "---"]
-                body = "<br>".join(body_lines)
-                # Clean markdown bold
-                body = body.replace("**", "")
-                
+                body = "<br>".join(body_lines).replace("**", "")
                 header_lower = header.lower()
                 
-                if "bottom line" in header_lower:
-                    # THE BOTTOM LINE — accent label + bold text
-                    st.markdown(f"""
+                if "bottom line" in header_lower or "итог" in header_lower and "net" not in header_lower:
+                    html += f"""
                     <div style="margin-bottom:20px;">
                         <div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">⚡ THE BOTTOM LINE</div>
                         <div style="font-size:0.95rem; font-weight:600; color:{text}; line-height:1.6;">{body}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    </div>"""
                 
                 elif "vital" in header_lower or "metric" in header_lower or "ключев" in header_lower or "цифр" in header_lower:
-                    # VITAL METRICS — grid of metric cards with big numbers
                     metric_items = [l for l in body_lines if l and not l.startswith("---")]
-                    st.markdown(f"""<div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:10px;">📊 VITAL METRICS</div>""", unsafe_allow_html=True)
-                    
-                    cols_html = ""
+                    cards = ""
                     for item in metric_items[:4]:
                         clean = item.lstrip("- •*0123456789.)").replace("**", "").strip()
-                        # Try to split on ":" to get label and value
                         if ":" in clean:
                             parts = clean.split(":", 1)
                             label = parts[0].strip()
                             rest = parts[1].strip()
-                            # Try to extract the number/value (before the dash)
                             if "—" in rest:
-                                val_parts = rest.split("—", 1)
-                                value = val_parts[0].strip()
-                                desc = val_parts[1].strip()
+                                vp = rest.split("—", 1)
+                                value, desc = vp[0].strip(), vp[1].strip()
                             elif " - " in rest:
-                                val_parts = rest.split(" - ", 1)
-                                value = val_parts[0].strip()
-                                desc = val_parts[1].strip()
+                                vp = rest.split(" - ", 1)
+                                value, desc = vp[0].strip(), vp[1].strip()
                             else:
-                                value = rest[:30]
-                                desc = ""
-                            
-                            # Color red if STOP/WAIT/negative signal
-                            val_color = "#e84050" if any(w in clean.lower() for w in ["stop", "wait", "abort", "стоп", "нет"]) else text
-                            
-                            cols_html += f"""
+                                value, desc = rest[:40], ""
+                            val_color = "#e84050" if any(w in clean.lower() for w in ["stop", "wait", "стоп", "нет", "abort"]) else text
+                            cards += f"""
                             <div style="background:{bg}; border:1px solid {border}; border-radius:10px; padding:12px 14px;">
                                 <div style="font-size:0.7rem; color:{text2};">{label}</div>
                                 <div style="font-size:1.25rem; font-weight:700; color:{val_color}; margin:4px 0;">{value}</div>
                                 <div style="font-size:0.7rem; color:{text2};">{desc}</div>
                             </div>"""
                         else:
-                            cols_html += f"""
+                            cards += f"""
                             <div style="background:{bg}; border:1px solid {border}; border-radius:10px; padding:12px 14px;">
-                                <div style="font-size:0.85rem; color:{text}; line-height:1.5;">{clean}</div>
+                                <div style="font-size:0.85rem; color:{text};">{clean}</div>
                             </div>"""
                     
-                    st.markdown(f"""
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px;">
-                        {cols_html}
-                    </div>
-                    """, unsafe_allow_html=True)
+                    html += f"""
+                    <div style="margin-bottom:20px;">
+                        <div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:10px;">📊 VITAL METRICS</div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">{cards}</div>
+                    </div>"""
                 
                 elif "three" in header_lower or "move" in header_lower or "шаг" in header_lower:
-                    # THREE MOVES — numbered steps with colored borders
-                    st.markdown(f"""<div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:10px;">⚡ THREE MOVES</div>""", unsafe_allow_html=True)
-                    
-                    colors = [accent, "#378ADD", "#888780"]
+                    colors_list = [accent, "#378ADD", "#888780"]
+                    steps = ""
                     step_items = [l for l in body_lines if l and not l.startswith("---")]
                     for i, step in enumerate(step_items[:3]):
                         clean = step.lstrip("- •*0123456789.)").replace("**", "").strip()
-                        c = colors[i] if i < len(colors) else colors[-1]
-                        st.markdown(f"""
-                        <div style="background:{bg}; border-left:3px solid {c}; padding:12px 14px; margin-bottom:8px;">
+                        c = colors_list[i] if i < len(colors_list) else colors_list[-1]
+                        steps += f"""
+                        <div style="background:{bg}; border-left:3px solid {c}; padding:10px 14px; margin-bottom:8px;">
                             <div style="font-size:0.85rem; color:{text}; line-height:1.5;">{clean}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        </div>"""
                     
-                    st.markdown(f"""<div style="margin-bottom:20px;"></div>""", unsafe_allow_html=True)
+                    html += f"""
+                    <div style="margin-bottom:20px;">
+                        <div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:10px;">⚡ THREE MOVES</div>
+                        {steps}
+                    </div>"""
                 
-                elif "stop" in header_lower or "risk" in header_lower or "риск" in header_lower:
-                    # CRITICAL STOP-LOSS — danger card
-                    st.markdown(f"""
+                elif "stop" in header_lower or "risk" in header_lower or "риск" in header_lower or "стоп" in header_lower:
+                    html += f"""
                     <div style="margin-bottom:20px;">
                         <div style="color:#e84050; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">⚠️ CRITICAL STOP-LOSS</div>
                         <div style="background:rgba(232,64,80,0.08); border:1px solid rgba(232,64,80,0.2); border-radius:10px; padding:12px 14px;">
                             <div style="font-size:0.85rem; color:{text}; line-height:1.6;">{body}</div>
                         </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    </div>"""
                 
                 elif "quantum" in header_lower or "квант" in header_lower:
-                    # WHY QUANTUM DISAGREES — purple card
-                    st.markdown(f"""
+                    html += f"""
                     <div style="margin-bottom:20px;">
                         <div style="color:#7F77DD; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">🧠 WHY QUANTUM DISAGREES WITH AI</div>
                         <div style="background:rgba(127,119,221,0.06); border:1px solid rgba(127,119,221,0.15); border-radius:10px; padding:12px 14px;">
                             <div style="font-size:0.85rem; color:{text}; line-height:1.7;">{body}</div>
                         </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    </div>"""
                 
-                elif "outcome" in header_lower or "итог" in header_lower:
-                    # NET OUTCOME — accent summary
-                    st.markdown(f"""
+                elif "outcome" in header_lower or ("итог" in header_lower and "bottom" not in header_lower):
+                    html += f"""
                     <div style="border-top:1px solid {border}; padding-top:16px;">
                         <div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">💰 NET OUTCOME</div>
                         <div style="font-size:0.92rem; font-weight:600; color:{text}; line-height:1.6;">{body}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    </div>"""
                 
                 else:
-                    # Generic section
                     clean_header = header.replace("**", "").strip()
-                    st.markdown(f"""
+                    html += f"""
                     <div style="margin-bottom:16px;">
                         <div style="color:{text2}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">{clean_header}</div>
                         <div style="font-size:0.85rem; color:{text}; line-height:1.6;">{body}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    </div>"""
             
-            # Close FINAL VERDICT card
-            st.markdown("</div>", unsafe_allow_html=True)
+            html += "</div>"
+            st.markdown(html, unsafe_allow_html=True)
             
             st.download_button("⬇️ Download Executive Brief", data=brief_text.encode("utf-8"), file_name="quantum_oracle_executive_brief.txt", mime="text/plain", key="dl_brief")
 
