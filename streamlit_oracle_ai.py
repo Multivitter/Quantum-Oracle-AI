@@ -1190,18 +1190,19 @@ If the input contains [DATA-DRIVEN ANALYSIS] with business metrics, analyze the 
 - Find anomalies or risks in the numbers
 - Calculate key ratios (ACOS, conversion rates, margins, etc.)
 Then generate 5 optimization/growth strategies based on the actual data.
+Use real market data if provided. Do not invent numbers where real data is available.
 
 Otherwise, generate 5 business scenarios as usual.
 
 Output format — JSON array:
 - "id": 1-5
 - "name": short name (3-5 words)
-- "description": 2 sentences
+- "description": 2 sentences with specific numbers. Each claim must be labeled: [FACT] for verified data, [ESTIMATE] for calculated projections, [HYPOTHESIS] for assumptions
 - "success_probability": 0-100
 - "expected_roi": percentage (can be negative)
 - "risk_score": 0-100
 - "time_to_profit": months
-- "key_factors": array of 3 strings
+- "key_factors": array of 3 strings. Start each with [FACT], [ESTIMATE], or [HYPOTHESIS]
 - "threats": array of 2 strings
 - "recommendation": "GO" or "WAIT" or "AVOID"
 
@@ -2429,7 +2430,28 @@ if "scenarios" in st.session_state:
 
     # === AI vs QUANTUM COMPARISON ===
     st.markdown("---")
-    st.markdown("### ⚔️ AI vs QUANTUM — Who chose what?")
+    
+    # Quantum Score Explainer
+    best_q_score = max([r.get("quantum_score", 0) for r in quantum.get("results", [])]) if quantum.get("results") else 0
+    total_shots = quantum.get("total_shots", 0)
+    total_qubits = quantum.get("total_qubits", 0)
+    st.markdown(f"""
+    <div style="background:{card_bg}; border:1px solid {border}; border-radius:12px; padding:16px 20px; margin-bottom:16px;">
+        <div style="color:{accent}; font-size:0.7rem; letter-spacing:2px; margin-bottom:8px;">🔬 HOW QUANTUM SCORING WORKS</div>
+        <div style="color:{text}; font-size:0.85rem; line-height:1.7;">
+            <b>What {total_qubits} qubits do:</b> Each qubit = one strategy. Entanglement (CX gates) creates correlations between ALL strategies simultaneously — 
+            {2**total_qubits:,} combinations evaluated in {total_shots:,} measurements.<br><br>
+            <b>What quantum_score means:</b> Probability that this strategy survives portfolio optimization. 
+            Score 86% = in 86 out of 100 quantum measurements, this strategy was in the optimal portfolio. 
+            Score 29% = only selected in 29 out of 100 — quantum sees hidden conflicts with other strategies.<br><br>
+            <b>Why AI and Quantum disagree:</b> AI ranks each strategy independently (like reading 5 resumes one by one). 
+            Quantum evaluates all 5 together (like a team interview — some great individuals don't work together). 
+            When scores diverge, the quantum engine detected <b>cross-strategy dependencies</b> that linear AI misses.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("### ⚔️ AI vs QUANTUM — Where They Disagree = Your Hidden Opportunities")
 
     # Sort scenarios by AI (success_probability) and by Quantum (quantum_score)
     ai_ranking = sorted(scenarios, key=lambda s: s["success_probability"], reverse=True)
@@ -2496,9 +2518,11 @@ if "scenarios" in st.session_state:
         insight_color = "#00e878" if biggest["ai_rank"] > biggest["q_rank"] else "#e84050"
         st.markdown(f"""
         <div style="background:{card_bg}; border:1px solid {border}; border-radius:10px; padding:14px 18px; margin-top:8px;">
-            <span style="color:{insight_color}; font-weight:600;">⚡ Найбільша розбіжність:</span>
-            <span style="color:{text};"> «{biggest['name']}» — AI поставив #{biggest['ai_rank']}, квант перемістив на #{biggest['q_rank']} ({direction} на {biggest['rank_diff']} позицій).
-            Квант бачить портфельну взаємодію через entanglement, яку AI не враховує.</span>
+            <span style="color:{insight_color}; font-weight:600;">⚡ Biggest Disagreement:</span>
+            <span style="color:{text};"> «{biggest['name']}» — AI ranked #{biggest['ai_rank']}, Quantum moved to #{biggest['q_rank']} ({direction} {biggest['rank_diff']} positions).</span><br>
+            <span style="color:{text2}; font-size:0.8rem;">
+            <b>What this means:</b> {'Quantum sees that investing in this strategy would weaken other strategies in your portfolio. AI evaluated it in isolation and overvalued it.' if biggest['ai_rank'] < biggest['q_rank'] else 'Quantum detected synergy with other strategies that AI missed. This option becomes stronger when combined with the rest of your portfolio.'}
+            </span>
         </div>
         """, unsafe_allow_html=True)
 
