@@ -34,14 +34,10 @@ except ImportError:
     ANTHROPIC_AVAILABLE = False
 
 try:
-    from google import genai as genai_client
+    import google.generativeai as genai
     GEMINI_AVAILABLE = True
 except ImportError:
-    try:
-        import google.generativeai as genai_client
-        GEMINI_AVAILABLE = True
-    except ImportError:
-        GEMINI_AVAILABLE = False
+    GEMINI_AVAILABLE = False
 
 try:
     from groq import Groq as GroqClient
@@ -1280,10 +1276,12 @@ def web_search_context(idea, api_key, model="claude-sonnet-4-6"):
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
     if gemini_key and GEMINI_AVAILABLE:
         try:
-            client = genai_client.Client(api_key=gemini_key)
-            response = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=f"""Search the web for current real market data relevant to this business:
+            genai.configure(api_key=gemini_key)
+            search_model = genai.GenerativeModel(
+                "gemini-2.5-flash",
+                tools=[{"google_search": {}}]
+            )
+            response = search_model.generate_content(f"""Search the web for current real market data relevant to this business:
 
 {idea[:500]}
 
@@ -1293,8 +1291,7 @@ Find and return ONLY factual numbers:
 - Competitor pricing
 - Any relevant economic indicators
 
-Format as a short bullet list of VERIFIED facts with sources. Max 10 bullets. Only real data, no opinions.""",
-                config={"tools": [{"google_search": {}}]}
+Format as a short bullet list of VERIFIED facts with sources. Max 10 bullets. Only real data, no opinions."""
             )
             if response and response.text:
                 return f"[Source: Google Search via Gemini — FREE]\n{response.text}"
@@ -1341,18 +1338,16 @@ def call_claude(prompt, api_key, raw_text=False, model="claude-sonnet-4-6"):
 
 
 def call_gemini(prompt, raw_text=False, gemini_model="gemini-2.5-flash"):
-    """Google Gemini API call (new google.genai SDK)."""
+    """Google Gemini API call."""
     if not GEMINI_AVAILABLE:
         return None
     gemini_key = os.environ.get("GEMINI_API_KEY", "")
     if not gemini_key:
         return None
     try:
-        client = genai_client.Client(api_key=gemini_key)
-        response = client.models.generate_content(
-            model=gemini_model,
-            contents=prompt
-        )
+        genai.configure(api_key=gemini_key)
+        model = genai.GenerativeModel(gemini_model)
+        response = model.generate_content(prompt)
         text = response.text
         if raw_text:
             return text
@@ -1678,15 +1673,35 @@ if chat_enabled:
         history_text = "\n".join([f"{'User' if m['role']=='user' else 'AI'}: {m['text']}" for m in st.session_state["chat_history"][-6:]])
         current_idea = idea.strip() if idea and idea.strip() else ""
         
+        # Get data context if available
+        data_info = ""
+        if "uploaded_df" in st.session_state:
+            df = st.session_state["uploaded_df"]
+            data_info = f"\n\nThe user has attached business data: {len(df):,} rows × {len(df.columns)} columns."
+            data_info += f"\nColumns: {', '.join(df.columns.tolist()[:15])}"
+            # Add sample data
+            sample = df.head(5).to_string(max_cols=10, max_colwidth=15)
+            data_info += f"\nSample:\n{sample}"
+            # Numeric stats
+            for col in df.select_dtypes(include=['number']).columns[:5]:
+                valid = df[col].dropna()
+                if len(valid) > 0:
+                    data_info += f"\n{col}: min={valid.min():.2f}, max={valid.max():.2f}, mean={valid.mean():.2f}"
+            # Categories
+            for col in df.select_dtypes(include=['object']).columns[:3]:
+                uniques = df[col].dropna().unique()[:10]
+                data_info += f"\n{col}: {', '.join(str(v) for v in uniques)}"
+        
         chat_prompt = f"""You are a business strategy advisor in Quantum Oracle AI platform.
 The user is brainstorming before running a full quantum analysis.
 {f'Their current business idea: {current_idea}' if current_idea else ''}
+{data_info}
 
 Previous conversation:
 {history_text}
 
-Respond briefly (2-4 sentences). Be specific, actionable. Help them refine their idea.
-If they ask what to analyze — suggest a concrete business scenario.
+Respond briefly (3-5 sentences). Be specific, actionable. If the user attached data — reference specific numbers from it.
+Help them refine their idea or understand their data before running quantum simulation.
 Respond in the same language as the user."""
         
         with st.spinner("🤖 Thinking..."):
@@ -1701,7 +1716,23 @@ Respond in the same language as the user."""
                 if chat_engine == "gemini":
                     reply = call_gemini(chat_prompt, raw_text=True, gemini_model=gemini_model)
                 elif chat_engine == "groq":
-                    reply = call_groq(chat_prompt, raw_text=True)
+                    groq_key = os.environ.get("GROQ_API_KEY", "")
+                    if not groq_key:
+                        reply = "⚠️ Groq API key not found in secrets"
+                    elif not GROQ_AVAILABLE:
+                        reply = "⚠️ Groq package not installed"
+                    else:
+                        try:
+                            client = GroqClient(api_key=groq_key)
+                            groq_m = st.session_state.get("groq_model", "llama-3.3-70b-versatile")
+                            resp = client.chat.completions.create(
+                                model=groq_m,
+                                messages=[{"role": "user", "content": chat_prompt}],
+                                max_tokens=2000
+                            )
+                            reply = resp.choices[0].message.content
+                        except Exception as ge:
+                            reply = f"⚠️ Groq error ({groq_m}): {ge}"
                 else:
                     reply = call_claude(chat_prompt, api_key, raw_text=True, model=claude_model)
                 
