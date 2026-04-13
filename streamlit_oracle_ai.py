@@ -33,12 +33,27 @@ try:
 except ImportError:
     ANTHROPIC_AVAILABLE = False
 
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+
 # Set env var from secrets if available (backup for anthropic library)
 import os
 try:
     _secret_api = str(st.secrets["ANTHROPIC_API_KEY"]).strip().strip('"').strip("'")
     if _secret_api.startswith("sk-ant"):
         os.environ["ANTHROPIC_API_KEY"] = _secret_api
+except Exception:
+    pass
+
+try:
+    _gemini_key = str(st.secrets["GEMINI_API_KEY"]).strip().strip('"').strip("'")
+    if _gemini_key.startswith("AIza"):
+        os.environ["GEMINI_API_KEY"] = _gemini_key
+        if GEMINI_AVAILABLE:
+            genai.configure(api_key=_gemini_key)
 except Exception:
     pass
 
@@ -1268,6 +1283,46 @@ def call_claude(prompt, api_key, raw_text=False, model="claude-sonnet-4-6"):
         return None
 
 
+def call_gemini(prompt, raw_text=False, gemini_model="gemini-2.5-flash"):
+    """Google Gemini API call."""
+    if not GEMINI_AVAILABLE:
+        return None
+    try:
+        model = genai.GenerativeModel(gemini_model)
+        response = model.generate_content(prompt)
+        text = response.text
+        if raw_text:
+            return text
+        try:
+            return json.loads(text)
+        except:
+            import re
+            # Remove markdown code fences
+            clean = text.replace("```json", "").replace("```", "").strip()
+            try:
+                return json.loads(clean)
+            except:
+                m = re.search(r'[\[{][\s\S]*[\]}]', clean)
+                return json.loads(m.group()) if m else text
+    except Exception as e:
+        st.error(f"Gemini API error: {e}")
+        return None
+
+
+def call_ai(prompt, api_key, ai_engine="claude", raw_text=False, model="claude-sonnet-4-6", gemini_model="gemini-2.5-flash"):
+    """Universal AI call — supports Claude, Gemini, or both."""
+    if ai_engine == "gemini":
+        return call_gemini(prompt, raw_text, gemini_model)
+    elif ai_engine == "🧠 MULTI (Claude + Gemini)":
+        claude_result = call_claude(prompt, api_key, raw_text, model)
+        gemini_result = call_gemini(prompt, raw_text, gemini_model)
+        if claude_result and gemini_result:
+            st.session_state["gemini_comparison"] = gemini_result
+        return claude_result if claude_result else gemini_result
+    else:
+        return call_claude(prompt, api_key, raw_text, model)
+
+
 # ============================================================
 # UI
 # ============================================================
@@ -1289,14 +1344,30 @@ with st.sidebar:
         secret_key = str(st.secrets["ANTHROPIC_API_KEY"]).strip().strip('"').strip("'")
     except Exception:
         secret_key = ""
+
+    gemini_key = ""
+    try:
+        gemini_key = str(st.secrets["GEMINI_API_KEY"]).strip().strip('"').strip("'")
+    except Exception:
+        gemini_key = ""
     
     if secret_key and secret_key.startswith("sk-ant"):
         api_key = secret_key
-        st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ API Key loaded ({api_key[:12]}...)</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ Claude ({api_key[:12]}...)</div>', unsafe_allow_html=True)
     else:
         api_key = st.text_input("Claude API Key", type="password", help="sk-ant-...")
-        if secret_key:
-            st.markdown(f'<div style="color:#cc4444; font-size:0.7rem;">⚠️ Secret key found but invalid format: {secret_key[:15]}...</div>', unsafe_allow_html=True)
+
+    if gemini_key and gemini_key.startswith("AIza"):
+        st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ Gemini ({gemini_key[:12]}...)</div>', unsafe_allow_html=True)
+        if GEMINI_AVAILABLE:
+            genai.configure(api_key=gemini_key)
+
+    # AI Engine selector
+    st.markdown("### 🤖 AI Engine")
+    ai_engines = ["claude"]
+    if gemini_key:
+        ai_engines = ["claude", "gemini", "🧠 MULTI (Claude + Gemini)"]
+    ai_engine = st.selectbox("Engine", ai_engines, index=0, label_visibility="collapsed")
 
     st.markdown("### 🤖 Claude Model")
     model_options = {
@@ -1306,6 +1377,19 @@ with st.sidebar:
     }
     selected_model = st.selectbox("Model", options=list(model_options.keys()), index=0, label_visibility="collapsed")
     claude_model = model_options[selected_model]
+
+    if gemini_key:
+        st.markdown("### 🤖 Gemini Model")
+        gemini_options = {
+            "Gemini 3 Flash (newest)": "gemini-3-flash-preview",
+            "Gemini 2.5 Flash (stable)": "gemini-2.5-flash",
+            "Gemini 2.5 Pro (best)": "gemini-2.5-pro",
+            "Gemini 2.5 Flash-Lite (cheap)": "gemini-2.5-flash-lite"
+        }
+        selected_gemini = st.selectbox("Gemini", options=list(gemini_options.keys()), index=1, label_visibility="collapsed")
+        gemini_model = gemini_options[selected_gemini]
+    else:
+        gemini_model = "gemini-2.5-flash"
 
     st.markdown("---")
     st.markdown("### 🎮 Strategy Mode")
@@ -1662,7 +1746,7 @@ IMPORTANT: Use the real market data above for all calculations. Do not invent nu
                 timeline=timeline, risk=risk, mode=mode_val,
                 lang=lang_map[lang]
             )
-            scenarios = call_claude(prompt, api_key, model=claude_model)
+            scenarios = call_ai(prompt, api_key, ai_engine=ai_engine, model=claude_model, gemini_model=gemini_model)
 
         if scenarios and isinstance(scenarios, list):
             st.session_state["scenarios"] = scenarios
