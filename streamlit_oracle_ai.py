@@ -1716,7 +1716,7 @@ if attach_data:
                     content = uploaded_file.read().decode('utf-8')
                     csv_data_summary = f"File: {uploaded_file.name}\n{content[:4000]}"
                 if csv_data_summary:
-                    st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ {uploaded_file.name} loaded</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ {uploaded_file.name} — {len(df):,} rows × {len(df.columns)} columns</div>', unsafe_allow_html=True)
             except Exception as e:
                 st.error(f"Error: {e}")
 
@@ -1777,7 +1777,7 @@ if attach_data:
                     csv_data_summary = "\n".join(stats)
                     if len(csv_data_summary) > 8000:
                         csv_data_summary = csv_data_summary[:8000] + "\n... (truncated)"
-                    st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ Sheet loaded</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ Sheet loaded — {len(df):,} rows × {len(df.columns)} columns</div>', unsafe_allow_html=True)
             except Exception as e:
                 st.error(f"Error: {e}")
 
