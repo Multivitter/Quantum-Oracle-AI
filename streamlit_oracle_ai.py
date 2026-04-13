@@ -154,8 +154,8 @@ st.markdown(f"""
 
     /* === TOGGLES — visible in both themes === */
     div[data-testid="stToggle"] {{
-        background: {'rgba(255,255,255,0.03)' if dark_mode else 'rgba(0,0,0,0.06)'} !important;
-        border: 1px solid {border} !important;
+        background: {'rgba(255,255,255,0.03)' if dark_mode else '#ffffff'} !important;
+        border: {'1px solid ' + border if dark_mode else '2px solid #333'} !important;
         border-radius: 10px !important;
         padding: 8px 12px !important;
         margin-bottom: 5px !important;
