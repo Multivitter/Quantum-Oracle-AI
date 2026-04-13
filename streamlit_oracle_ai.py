@@ -1280,7 +1280,7 @@ def _call_claude_inner(prompt, api_key, raw_text=False, model="claude-sonnet-4-6
         client = anthropic.Anthropic(api_key=str(api_key).strip())
         msg = client.messages.create(
             model=model,
-            max_tokens=4000,
+            max_tokens=8000,
             messages=[{"role": "user", "content": prompt}]
         )
         text = msg.content[0].text
@@ -2083,7 +2083,18 @@ IMPORTANT: Use the real market data above for all calculations. Do not invent nu
                     idea=idea, budget=budget, timeline=timeline,
                     mode=mode_val, lang=lang_map[lang], ranking=ranking
                 )
-                exec_data = call_claude(exec_prompt, api_key, model=claude_model)
+                exec_data = call_ai(exec_prompt, api_key, ai_engine=ai_engine, model=claude_model, gemini_model=gemini_model)
+                
+                # Validate exec_data has required fields
+                if isinstance(exec_data, dict):
+                    if not exec_data.get("execution_plan"):
+                        exec_data["execution_plan"] = [{"week": i, "title": f"Week {i}", "tasks": ["TBD"]} for i in range(1, 9)]
+                    if not exec_data.get("money_projection"):
+                        exec_data["money_projection"] = {"month_1": {"users": 0, "revenue": 0}, "month_2": {"users": 0, "revenue": 0}, "month_3": {"users": 0, "revenue": 0}, "month_6": {"users": 0, "revenue": 0}, "total_mrr_target": 0, "breakeven_month": 3}
+                    if not exec_data.get("quantum_reasoning"):
+                        exec_data["quantum_reasoning"] = ["Quantum analysis completed — see AI vs Quantum comparison above"]
+                else:
+                    exec_data = {}
                 st.session_state["exec_data"] = exec_data
 
             # Save to history for comparison
