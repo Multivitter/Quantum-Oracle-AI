@@ -39,6 +39,12 @@ try:
 except ImportError:
     GEMINI_AVAILABLE = False
 
+try:
+    from groq import Groq as GroqClient
+    GROQ_AVAILABLE = True
+except ImportError:
+    GROQ_AVAILABLE = False
+
 # Set env var from secrets if available (backup for anthropic library)
 import os
 try:
@@ -54,6 +60,13 @@ try:
         os.environ["GEMINI_API_KEY"] = _gemini_key
         if GEMINI_AVAILABLE:
             genai.configure(api_key=_gemini_key)
+except Exception:
+    pass
+
+try:
+    _groq_key = str(st.secrets["GROQ_API_KEY"]).strip().strip('"').strip("'")
+    if _groq_key.startswith("gsk_"):
+        os.environ["GROQ_API_KEY"] = _groq_key
 except Exception:
     pass
 
@@ -1243,7 +1256,38 @@ def _call_claude_inner(prompt, api_key, raw_text=False, model="claude-sonnet-4-6
 
 
 def web_search_context(idea, api_key, model="claude-sonnet-4-6"):
-    """Search web for real market data before analysis."""
+    """Search web for real market data before analysis.
+    Uses Gemini with Google Search grounding (FREE) if available,
+    falls back to Claude web search ($0.03/query)."""
+    
+    # Try Gemini Search first (FREE — 500 queries/day)
+    gemini_key = os.environ.get("GEMINI_API_KEY", "")
+    if gemini_key and GEMINI_AVAILABLE:
+        try:
+            from google.generativeai import GenerativeModel
+            search_model = GenerativeModel(
+                "gemini-2.5-flash",
+                tools=[{"google_search": {}}]
+            )
+            response = search_model.generate_content(
+                f"""Search the web for current real market data relevant to this business:
+
+{idea[:500]}
+
+Find and return ONLY factual numbers:
+- Current market prices, rates, costs relevant to this industry
+- Market size, growth rates
+- Competitor pricing
+- Any relevant economic indicators
+
+Format as a short bullet list of VERIFIED facts with sources. Max 10 bullets. Only real data, no opinions."""
+            )
+            if response and response.text:
+                return f"[Source: Google Search via Gemini — FREE]\n{response.text}"
+        except Exception:
+            pass  # Fall through to Claude
+    
+    # Fallback to Claude web search ($0.03/query)
     if not api_key or not api_key.startswith("sk-ant"):
         return ""
     try:
@@ -1264,12 +1308,11 @@ Find and return ONLY factual numbers:
 
 Format as a short bullet list of VERIFIED facts with sources. Max 10 bullets. Only real data, no opinions."""}]
         )
-        # Extract text from response (may contain tool use blocks)
         texts = []
         for block in msg.content:
             if hasattr(block, 'text'):
                 texts.append(block.text)
-        return "\n".join(texts) if texts else ""
+        return f"[Source: Claude Web Search]\n" + "\n".join(texts) if texts else ""
     except Exception as e:
         return f"(Web search unavailable: {e})"
 
@@ -1310,17 +1353,54 @@ def call_gemini(prompt, raw_text=False, gemini_model="gemini-2.5-flash"):
 
 
 def call_ai(prompt, api_key, ai_engine="claude", raw_text=False, model="claude-sonnet-4-6", gemini_model="gemini-2.5-flash"):
-    """Universal AI call — supports Claude, Gemini, or both."""
+    """Universal AI call — supports Claude, Gemini, Groq, or all three."""
     if ai_engine == "gemini":
         return call_gemini(prompt, raw_text, gemini_model)
-    elif ai_engine == "🧠 MULTI (Claude + Gemini)":
+    elif ai_engine == "groq":
+        return call_groq(prompt, raw_text)
+    elif ai_engine == "🧠 MULTI (all 3)":
         claude_result = call_claude(prompt, api_key, raw_text, model)
         gemini_result = call_gemini(prompt, raw_text, gemini_model)
-        if claude_result and gemini_result:
-            st.session_state["gemini_comparison"] = gemini_result
-        return claude_result if claude_result else gemini_result
+        groq_result = call_groq(prompt, raw_text)
+        st.session_state["multi_ai_results"] = {
+            "claude": claude_result,
+            "gemini": gemini_result,
+            "groq": groq_result
+        }
+        return claude_result or gemini_result or groq_result
     else:
         return call_claude(prompt, api_key, raw_text, model)
+
+
+def call_groq(prompt, raw_text=False):
+    """Groq API call — fastest inference, Llama models."""
+    groq_key = os.environ.get("GROQ_API_KEY", "")
+    if not groq_key or not GROQ_AVAILABLE:
+        return None
+    try:
+        client = GroqClient(api_key=groq_key)
+        groq_model = st.session_state.get("groq_model", "llama-3.3-70b-versatile")
+        response = client.chat.completions.create(
+            model=groq_model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=4000
+        )
+        text = response.choices[0].message.content
+        if raw_text:
+            return text
+        try:
+            return json.loads(text)
+        except:
+            import re
+            clean = text.replace("```json", "").replace("```", "").strip()
+            try:
+                return json.loads(clean)
+            except:
+                m = re.search(r'[\[{][\s\S]*[\]}]', clean)
+                return json.loads(m.group()) if m else text
+    except Exception as e:
+        st.error(f"Groq API error: {e}")
+        return None
 
 
 # ============================================================
@@ -1362,11 +1442,26 @@ with st.sidebar:
         if GEMINI_AVAILABLE:
             genai.configure(api_key=gemini_key)
 
+    groq_key = ""
+    try:
+        groq_key = str(st.secrets["GROQ_API_KEY"]).strip().strip('"').strip("'")
+    except Exception:
+        groq_key = os.environ.get("GROQ_API_KEY", "")
+
+    if groq_key and groq_key.startswith("gsk_"):
+        st.markdown(f'<div style="color:{accent}; font-size:0.75rem;">✅ Groq ({groq_key[:12]}...)</div>', unsafe_allow_html=True)
+
     # AI Engine selector
     st.markdown("### 🤖 AI Engine")
     ai_engines = ["claude"]
     if gemini_key:
-        ai_engines = ["claude", "gemini", "🧠 MULTI (Claude + Gemini)"]
+        ai_engines.append("gemini")
+    if groq_key:
+        ai_engines.append("groq")
+    if len(ai_engines) >= 3:
+        ai_engines.append("🧠 MULTI (all 3)")
+    elif len(ai_engines) == 2:
+        ai_engines.append(f"🧠 MULTI ({'+'.join(ai_engines[:2])})")
     ai_engine = st.selectbox("Engine", ai_engines, index=0, label_visibility="collapsed")
 
     st.markdown("### 🤖 Claude Model")
@@ -1381,15 +1476,29 @@ with st.sidebar:
     if gemini_key:
         st.markdown("### 🤖 Gemini Model")
         gemini_options = {
-            "Gemini 3 Flash (newest)": "gemini-3-flash-preview",
+            "Gemini 3.1 Flash Live (newest)": "gemini-3.1-flash-live-preview",
+            "Gemini 3 Flash (smart+fast)": "gemini-3-flash-preview",
+            "Gemini 2.5 Pro (best quality)": "gemini-2.5-pro",
             "Gemini 2.5 Flash (stable)": "gemini-2.5-flash",
-            "Gemini 2.5 Pro (best)": "gemini-2.5-pro",
-            "Gemini 2.5 Flash-Lite (cheap)": "gemini-2.5-flash-lite"
+            "Gemini 2.5 Flash-Lite (cheapest)": "gemini-2.5-flash-lite",
+            "Gemini 2.0 Flash (legacy)": "gemini-2.0-flash"
         }
         selected_gemini = st.selectbox("Gemini", options=list(gemini_options.keys()), index=1, label_visibility="collapsed")
         gemini_model = gemini_options[selected_gemini]
     else:
         gemini_model = "gemini-2.5-flash"
+
+    if groq_key:
+        st.markdown("### 🤖 Groq Model")
+        groq_options = {
+            "GPT OSS 120B (best reasoning)": "openai/gpt-oss-120b",
+            "GPT OSS 20B (fast+smart)": "openai/gpt-oss-20b",
+            "Llama 4 Scout (vision+tools)": "meta-llama/llama-4-scout-17b-16e-instruct",
+            "Llama 3.3 70B (stable)": "llama-3.3-70b-versatile",
+            "Qwen3 32B (multilingual)": "qwen/qwen3-32b"
+        }
+        selected_groq = st.selectbox("Groq", options=list(groq_options.keys()), index=0, label_visibility="collapsed")
+        st.session_state["groq_model"] = groq_options[selected_groq]
 
     st.markdown("---")
     st.markdown("### 🎮 Strategy Mode")
