@@ -2372,21 +2372,23 @@ Write a board meeting brief:
 One BOLD sentence. The single most profitable move. No 'maybe'.
 
 ## 📊 VITAL METRICS
-4 numbers: **metric: value** — one-line explanation each.
+Exactly 4 metrics. Each on ONE line. Format: "LABEL: VALUE — short (max 10 words)"
+Example: "Quantum confidence: 65.04% — top strategy by portfolio score"
+Example: "Revenue path: $68K→$310K — M1 to M6 breakeven M2"
 
 ## ⚡ THREE MOVES
-1. **[Action]** — **[deadline]** — [measurable result with $]
-2. **[Action]** — **[deadline]** — [measurable result]
-3. **[Action]** — **[deadline]** — [measurable result]
+1. [5-word action] — [deadline] — [15-word max result with $]
+2. [5-word action] — [deadline] — [15-word max result with $]
+3. [5-word action] — [deadline] — [15-word max result with $]
 
 ## ⚠️ CRITICAL STOP-LOSS
-Exact trigger to abort. Specific number, not vague risk.
+One sentence only. Exact metric trigger. Example: "If installs < 500 by M3 OR MRR < $1,000 → freeze spend."
 
 ## 🧠 WHY QUANTUM DISAGREES WITH AI
-One paragraph: what quantum saw, specific shifts, capital allocation impact.
+Max 80 words. What quantum saw, shift numbers, allocation impact.
 
 ## 💰 NET OUTCOME
-One sentence: expected result if executed on schedule.
+One sentence: expected $ if executed on schedule.
 
 ULTRA specific. Exact numbers. Professional, cold, data-driven. CEO clarity."""
 
@@ -2436,19 +2438,45 @@ ULTRA specific. Exact numbers. Professional, cold, data-driven. CEO clarity."""
                     """, unsafe_allow_html=True)
                 
                 elif "vital" in header_lower or "metric" in header_lower or "ключев" in header_lower or "цифр" in header_lower:
-                    # VITAL METRICS — grid of metric cards
+                    # VITAL METRICS — grid of metric cards with big numbers
                     metric_items = [l for l in body_lines if l and not l.startswith("---")]
                     st.markdown(f"""<div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:10px;">📊 VITAL METRICS</div>""", unsafe_allow_html=True)
                     
                     cols_html = ""
                     for item in metric_items[:4]:
-                        # Try to extract label:value pattern
-                        clean = item.lstrip("- •*0123456789.)")
-                        clean = clean.replace("**", "").strip()
-                        cols_html += f"""
-                        <div style="background:{bg}; border:1px solid {border}; border-radius:10px; padding:12px 14px;">
-                            <div style="font-size:0.85rem; color:{text}; line-height:1.5;">{clean}</div>
-                        </div>"""
+                        clean = item.lstrip("- •*0123456789.)").replace("**", "").strip()
+                        # Try to split on ":" to get label and value
+                        if ":" in clean:
+                            parts = clean.split(":", 1)
+                            label = parts[0].strip()
+                            rest = parts[1].strip()
+                            # Try to extract the number/value (before the dash)
+                            if "—" in rest:
+                                val_parts = rest.split("—", 1)
+                                value = val_parts[0].strip()
+                                desc = val_parts[1].strip()
+                            elif " - " in rest:
+                                val_parts = rest.split(" - ", 1)
+                                value = val_parts[0].strip()
+                                desc = val_parts[1].strip()
+                            else:
+                                value = rest[:30]
+                                desc = ""
+                            
+                            # Color red if STOP/WAIT/negative signal
+                            val_color = "#e84050" if any(w in clean.lower() for w in ["stop", "wait", "abort", "стоп", "нет"]) else text
+                            
+                            cols_html += f"""
+                            <div style="background:{bg}; border:1px solid {border}; border-radius:10px; padding:12px 14px;">
+                                <div style="font-size:0.7rem; color:{text2};">{label}</div>
+                                <div style="font-size:1.25rem; font-weight:700; color:{val_color}; margin:4px 0;">{value}</div>
+                                <div style="font-size:0.7rem; color:{text2};">{desc}</div>
+                            </div>"""
+                        else:
+                            cols_html += f"""
+                            <div style="background:{bg}; border:1px solid {border}; border-radius:10px; padding:12px 14px;">
+                                <div style="font-size:0.85rem; color:{text}; line-height:1.5;">{clean}</div>
+                            </div>"""
                     
                     st.markdown(f"""
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px;">
