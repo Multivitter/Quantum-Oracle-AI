@@ -2400,45 +2400,42 @@ ULTRA specific. Exact numbers. Professional, cold, data-driven. CEO clarity."""
             if not isinstance(brief_text, str):
                 brief_text = str(brief_text)
             
-            # === Parse brief into sections and render as ONE HTML block ===
+            # === Parse and render as separate complete HTML blocks ===
             import re
             sections = re.split(r'##\s*', brief_text)
             
-            # Extract title
+            # Title block
             title_block = sections[0].strip() if sections else ""
             title_lines = [l.strip() for l in title_block.split("\n") if l.strip() and not l.strip().startswith("---")]
             brief_title = title_lines[0].replace("#", "").replace("**", "").strip() if title_lines else "Executive Brief"
             brief_subtitle = title_lines[1].replace("**", "").strip() if len(title_lines) > 1 else ""
             
-            # Build complete HTML
-            html = f"""
-            <div style="background:{card_bg}; border:2px solid {accent}; border-radius:16px; padding:28px 24px; margin:12px 0; position:relative; overflow:hidden;">
-                <div style="position:absolute; top:0; right:0; background:{accent}; color:{bg}; padding:5px 16px; font-size:0.6rem; font-weight:800; letter-spacing:2px; border-radius:0 0 0 12px;">FINAL VERDICT v0.8</div>
-                <div style="font-size:1.05rem; font-weight:700; color:{text}; margin-bottom:4px;">{brief_title}</div>
-                <div style="font-size:0.75rem; color:{text2}; margin-bottom:20px;">{brief_subtitle}</div>
-            """
+            # Header with FINAL VERDICT badge
+            st.markdown(f"""<div style="background:{card_bg}; border:2px solid {accent}; border-radius:16px 16px 0 0; padding:24px 24px 12px; position:relative;">
+<div style="position:absolute; top:0; right:0; background:{accent}; color:{bg}; padding:5px 16px; font-size:0.6rem; font-weight:800; letter-spacing:2px; border-radius:0 14px 0 12px;">FINAL VERDICT v0.8</div>
+<div style="font-size:1.05rem; font-weight:700; color:{text};">{brief_title}</div>
+<div style="font-size:0.75rem; color:{text2};">{brief_subtitle}</div>
+</div>""", unsafe_allow_html=True)
             
             for section in sections[1:]:
                 lines = section.strip().split("\n")
                 header = lines[0].strip() if lines else ""
                 body_lines = [l.strip() for l in lines[1:] if l.strip() and l.strip() != "---"]
-                body = "<br>".join(body_lines).replace("**", "")
+                body = "<br>".join([l.replace("**", "") for l in body_lines])
                 header_lower = header.lower()
                 
-                if "bottom line" in header_lower or "итог" in header_lower and "net" not in header_lower:
-                    html += f"""
-                    <div style="margin-bottom:20px;">
-                        <div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">⚡ THE BOTTOM LINE</div>
-                        <div style="font-size:0.95rem; font-weight:600; color:{text}; line-height:1.6;">{body}</div>
-                    </div>"""
+                if "bottom line" in header_lower:
+                    st.markdown(f"""<div style="background:{card_bg}; border-left:2px solid {accent}; border-right:2px solid {accent}; padding:16px 24px;">
+<div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">⚡ THE BOTTOM LINE</div>
+<div style="font-size:0.95rem; font-weight:600; color:{text}; line-height:1.6;">{body}</div>
+</div>""", unsafe_allow_html=True)
                 
                 elif "vital" in header_lower or "metric" in header_lower or "ключев" in header_lower or "цифр" in header_lower:
-                    metric_items = [l for l in body_lines if l and not l.startswith("---")]
-                    cards = ""
+                    metric_items = [l.lstrip("- •*0123456789.)").replace("**", "").strip() for l in body_lines if l.strip()]
+                    cards_html = ""
                     for item in metric_items[:4]:
-                        clean = item.lstrip("- •*0123456789.)").replace("**", "").strip()
-                        if ":" in clean:
-                            parts = clean.split(":", 1)
+                        if ":" in item:
+                            parts = item.split(":", 1)
                             label = parts[0].strip()
                             rest = parts[1].strip()
                             if "—" in rest:
@@ -2449,78 +2446,51 @@ ULTRA specific. Exact numbers. Professional, cold, data-driven. CEO clarity."""
                                 value, desc = vp[0].strip(), vp[1].strip()
                             else:
                                 value, desc = rest[:40], ""
-                            val_color = "#e84050" if any(w in clean.lower() for w in ["stop", "wait", "стоп", "нет", "abort"]) else text
-                            cards += f"""
-                            <div style="background:{bg}; border:1px solid {border}; border-radius:10px; padding:12px 14px;">
-                                <div style="font-size:0.7rem; color:{text2};">{label}</div>
-                                <div style="font-size:1.25rem; font-weight:700; color:{val_color}; margin:4px 0;">{value}</div>
-                                <div style="font-size:0.7rem; color:{text2};">{desc}</div>
-                            </div>"""
+                            vc = "#e84050" if any(w in item.lower() for w in ["stop","wait","стоп","abort"]) else text
+                            cards_html += f'<div style="background:{bg}; border:1px solid {border}; border-radius:10px; padding:12px 14px;"><div style="font-size:0.7rem; color:{text2};">{label}</div><div style="font-size:1.25rem; font-weight:700; color:{vc}; margin:4px 0;">{value}</div><div style="font-size:0.7rem; color:{text2};">{desc}</div></div>'
                         else:
-                            cards += f"""
-                            <div style="background:{bg}; border:1px solid {border}; border-radius:10px; padding:12px 14px;">
-                                <div style="font-size:0.85rem; color:{text};">{clean}</div>
-                            </div>"""
-                    
-                    html += f"""
-                    <div style="margin-bottom:20px;">
-                        <div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:10px;">📊 VITAL METRICS</div>
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">{cards}</div>
-                    </div>"""
+                            cards_html += f'<div style="background:{bg}; border:1px solid {border}; border-radius:10px; padding:12px;"><div style="font-size:0.85rem; color:{text};">{item}</div></div>'
+                    st.markdown(f"""<div style="background:{card_bg}; border-left:2px solid {accent}; border-right:2px solid {accent}; padding:16px 24px;">
+<div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:10px;">📊 VITAL METRICS</div>
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">{cards_html}</div>
+</div>""", unsafe_allow_html=True)
                 
                 elif "three" in header_lower or "move" in header_lower or "шаг" in header_lower:
-                    colors_list = [accent, "#378ADD", "#888780"]
-                    steps = ""
-                    step_items = [l for l in body_lines if l and not l.startswith("---")]
-                    for i, step in enumerate(step_items[:3]):
-                        clean = step.lstrip("- •*0123456789.)").replace("**", "").strip()
-                        c = colors_list[i] if i < len(colors_list) else colors_list[-1]
-                        steps += f"""
-                        <div style="background:{bg}; border-left:3px solid {c}; padding:10px 14px; margin-bottom:8px;">
-                            <div style="font-size:0.85rem; color:{text}; line-height:1.5;">{clean}</div>
-                        </div>"""
-                    
-                    html += f"""
-                    <div style="margin-bottom:20px;">
-                        <div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:10px;">⚡ THREE MOVES</div>
-                        {steps}
-                    </div>"""
+                    cl = [accent, "#378ADD", "#888780"]
+                    steps_html = ""
+                    for i, step in enumerate([l.lstrip("- •*0123456789.)").replace("**","").strip() for l in body_lines if l.strip()][:3]):
+                        c = cl[i] if i < len(cl) else cl[-1]
+                        steps_html += f'<div style="background:{bg}; border-left:3px solid {c}; padding:10px 14px; margin-bottom:8px;"><div style="font-size:0.85rem; color:{text}; line-height:1.5;">{step}</div></div>'
+                    st.markdown(f"""<div style="background:{card_bg}; border-left:2px solid {accent}; border-right:2px solid {accent}; padding:16px 24px;">
+<div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:10px;">⚡ THREE MOVES</div>
+{steps_html}
+</div>""", unsafe_allow_html=True)
                 
                 elif "stop" in header_lower or "risk" in header_lower or "риск" in header_lower or "стоп" in header_lower:
-                    html += f"""
-                    <div style="margin-bottom:20px;">
-                        <div style="color:#e84050; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">⚠️ CRITICAL STOP-LOSS</div>
-                        <div style="background:rgba(232,64,80,0.08); border:1px solid rgba(232,64,80,0.2); border-radius:10px; padding:12px 14px;">
-                            <div style="font-size:0.85rem; color:{text}; line-height:1.6;">{body}</div>
-                        </div>
-                    </div>"""
+                    st.markdown(f"""<div style="background:{card_bg}; border-left:2px solid {accent}; border-right:2px solid {accent}; padding:16px 24px;">
+<div style="color:#e84050; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">⚠️ CRITICAL STOP-LOSS</div>
+<div style="background:rgba(232,64,80,0.08); border:1px solid rgba(232,64,80,0.2); border-radius:10px; padding:12px 14px;"><div style="font-size:0.85rem; color:{text}; line-height:1.6;">{body}</div></div>
+</div>""", unsafe_allow_html=True)
                 
                 elif "quantum" in header_lower or "квант" in header_lower:
-                    html += f"""
-                    <div style="margin-bottom:20px;">
-                        <div style="color:#7F77DD; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">🧠 WHY QUANTUM DISAGREES WITH AI</div>
-                        <div style="background:rgba(127,119,221,0.06); border:1px solid rgba(127,119,221,0.15); border-radius:10px; padding:12px 14px;">
-                            <div style="font-size:0.85rem; color:{text}; line-height:1.7;">{body}</div>
-                        </div>
-                    </div>"""
+                    st.markdown(f"""<div style="background:{card_bg}; border-left:2px solid {accent}; border-right:2px solid {accent}; padding:16px 24px;">
+<div style="color:#7F77DD; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">🧠 WHY QUANTUM DISAGREES WITH AI</div>
+<div style="background:rgba(127,119,221,0.06); border:1px solid rgba(127,119,221,0.15); border-radius:10px; padding:12px 14px;"><div style="font-size:0.85rem; color:{text}; line-height:1.7;">{body}</div></div>
+</div>""", unsafe_allow_html=True)
                 
                 elif "outcome" in header_lower or ("итог" in header_lower and "bottom" not in header_lower):
-                    html += f"""
-                    <div style="border-top:1px solid {border}; padding-top:16px;">
-                        <div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">💰 NET OUTCOME</div>
-                        <div style="font-size:0.92rem; font-weight:600; color:{text}; line-height:1.6;">{body}</div>
-                    </div>"""
+                    st.markdown(f"""<div style="background:{card_bg}; border:2px solid {accent}; border-top:none; border-radius:0 0 16px 16px; padding:16px 24px;">
+<div style="border-top:1px solid {border}; padding-top:12px;">
+<div style="color:{accent}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">💰 NET OUTCOME</div>
+<div style="font-size:0.92rem; font-weight:600; color:{text}; line-height:1.6;">{body}</div>
+</div></div>""", unsafe_allow_html=True)
                 
                 else:
                     clean_header = header.replace("**", "").strip()
-                    html += f"""
-                    <div style="margin-bottom:16px;">
-                        <div style="color:{text2}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">{clean_header}</div>
-                        <div style="font-size:0.85rem; color:{text}; line-height:1.6;">{body}</div>
-                    </div>"""
-            
-            html += "</div>"
-            st.markdown(html, unsafe_allow_html=True)
+                    st.markdown(f"""<div style="background:{card_bg}; border-left:2px solid {accent}; border-right:2px solid {accent}; padding:16px 24px;">
+<div style="color:{text2}; font-size:0.7rem; font-weight:700; letter-spacing:2px; margin-bottom:8px;">{clean_header}</div>
+<div style="font-size:0.85rem; color:{text}; line-height:1.6;">{body}</div>
+</div>""", unsafe_allow_html=True)
             
             st.download_button("⬇️ Download Executive Brief", data=brief_text.encode("utf-8"), file_name="quantum_oracle_executive_brief.txt", mime="text/plain", key="dl_brief")
 
